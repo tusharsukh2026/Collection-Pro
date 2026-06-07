@@ -280,33 +280,46 @@
     async function loadUserProfileAndDashboard(session) {
       currentUserSession = session;
       
-      const { data: profile, error } = await supabaseClient
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .maybeSingle(); // .single() ki jagah .maybeSingle() use karein taaki error crash na ho
+      try {
+        // Ekdam standard query jo har version par chalti hai
+        const { data: profiles, error } = await supabaseClient
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id);
 
-      // Fix: Agar error hai ya profile database mein nahi milti (jaise deleted user)
-      if (error || !profile) {
-        console.log("Old or invalid session detected. Clearing session...");
-        await supabaseClient.auth.signOut(); // Browser se purana invalid session clear karein
-        currentUserSession = null;
-        activeProfileInfo = null;
-        showScreen('auth'); // Wapas login form dikhayein bina error ke
-        return;
-      }
+        // Agar database se koi error aaye ya profile ka data hi na mile (Length 0 ho)
+        if (error || !profiles || profiles.length === 0) {
+          console.log("Session invalid or user profile row missing. Force logging out...");
+          await supabaseClient.auth.signOut();
+          currentUserSession = null;
+          activeProfileInfo = null;
+          toggleLoader(false); // Loader ko band karein
+          showScreen('auth');   // Clean login screen dikhayein
+          return;
+        }
 
-      // Agar profile mil gayi, toh normal login process chalayein
-      activeProfileInfo = profile;
-      document.getElementById('userDisplay').innerText = profile.user_name;
-      document.getElementById('statusDisplay').innerText = profile.subscription_status;
-      
-      if(profile.subscription_status === 'ACTIVE') {
-        document.getElementById('statusDisplay').className = "badge bg-success";
+        // Row milne par pehla record nikalhein
+        const profile = profiles[0];
+        activeProfileInfo = profile;
+        
+        // UI Dashboard Text elements mapping
+        document.getElementById('userDisplay').innerText = profile.user_name;
+        document.getElementById('statusDisplay').innerText = profile.subscription_status;
+        
+        if(profile.subscription_status === 'ACTIVE') {
+          document.getElementById('statusDisplay').className = "badge bg-success";
+        }
+        
+        showScreen('dashboard');
+        await fetchCloudRecords();
+        
+      } catch (err) {
+        console.error("Critical crash bypass: ", err.message);
+        toggleLoader(false);
+        showScreen('auth');
       }
       
-      showScreen('dashboard');
-      await fetchCloudRecords();
+      toggleLoader(false); // Har haal mein processing screen ko band karein
     }
       
 
