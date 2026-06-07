@@ -6,9 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BikeTrack Pro - Secure Enterprise Dashboard</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 
@@ -28,22 +26,104 @@
     .metric-card { background: #1e293b; border-left: 4px solid #3b82f6; }
     #authScreen { max-width: 450px; margin: 60px auto; display: block; }
     #mainDashboard { display: none; }
+
+    /* ============================================================
+       NEW: TRIAL EXPIRED OVERLAY STYLES
+       -- Poore dashboard ko blur karke payment screen dikhata hai
+       -- User kuch bhi use nahi kar sakta jab tak payment nahi karta
+    ============================================================ */
+    #trialExpiredOverlay {
+      display: none; /* JS se show hoga jab trial khatam ho */
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(15, 23, 42, 0.97);
+      z-index: 99999;
+      justify-content: center;
+      align-items: center;
+    }
+    #trialExpiredOverlay.show { display: flex; }
+    .trial-box {
+      background: #1e293b;
+      border: 2px solid #ef4444;
+      border-radius: 16px;
+      padding: 40px 32px;
+      max-width: 480px;
+      width: 90%;
+      text-align: center;
+    }
+    .trial-box .expired-icon { font-size: 56px; margin-bottom: 12px; }
+    .trial-box h3 { color: #ef4444; font-weight: 800; margin-bottom: 8px; }
+    .trial-box p { color: #94a3b8; margin-bottom: 24px; }
+    .pay-btn {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 14px 32px;
+      font-size: 18px;
+      font-weight: 700;
+      width: 100%;
+      cursor: pointer;
+      text-decoration: none;
+      display: block;
+      margin-bottom: 12px;
+      transition: transform 0.1s;
+    }
+    .pay-btn:hover { transform: scale(1.02); color: white; }
+
+    /* NEW: Trial warning banner — dashboard ke top par dikhega */
+    #trialWarningBanner {
+      display: none;
+      background: linear-gradient(90deg, #92400e, #b45309);
+      color: #fef3c7;
+      text-align: center;
+      padding: 10px;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    #trialWarningBanner.show { display: block; }
   </style>
 </head>
 <body>
 
+  <!-- ============================================================
+       TRIAL EXPIRED FULL-SCREEN OVERLAY
+       -- Jab 45 din poore hote hain, yeh poore screen par aa jaata hai
+       -- Razorpay payment link yahan hai
+  ============================================================ -->
+  <div id="trialExpiredOverlay">
+    <div class="trial-box">
+      <div class="expired-icon">⏰</div>
+      <h3>Free Trial Khatam Ho Gaya!</h3>
+      <p>Aapka <strong>45-din ka Free Trial</strong> expire ho gaya hai.<br>
+        Dashboard use karna jaari rakhne ke liye please payment karein.</p>
+      <div class="alert alert-info text-start mb-3 small">
+        ✅ Payment ke baad apna <strong>Transaction ID / Screenshot</strong> WhatsApp par bhejein — 
+        24 ghante mein aapka account <span class="text-success fw-bold">ACTIVE</span> kar diya jaayega.
+      </div>
+      <!-- RAZORPAY PAYMENT LINK — seedha Razorpay par le jaata hai -->
+      <a href="https://razorpay.me/@tusharratansukh" target="_blank" class="pay-btn">
+        💳 Abhi Payment Karein — Razorpay
+      </a>
+      <button onclick="logoutUser()" class="btn btn-outline-secondary w-100">
+        Sign Out
+      </button>
+    </div>
+  </div>
+
+  <!-- AUTH SCREEN -->
   <div id="authScreen" class="container card p-4">
     <h3 class="text-center mb-4 text-primary fw-bold">BIKETRACK PRO SAAS</h3>
-    
+
     <ul class="nav nav-tabs mb-4 justify-content-center" id="authTabs">
       <li class="nav-item"><button type="button" id="tab-login" class="nav-link active" onclick="switchAuthTab('login')">PIN Login</button></li>
       <li class="nav-item"><button type="button" id="tab-register" class="nav-link" onclick="switchAuthTab('register')">New Register</button></li>
-      <!-- NEW TAB: Forgot PIN link tab -->
       <li class="nav-item"><button type="button" id="tab-forgot" class="nav-link" onclick="switchAuthTab('forgot')">Forgot PIN</button></li>
     </ul>
 
     <div id="authAlert" class="alert alert-danger d-none"></div>
 
+    <!-- LOGIN FORM -->
     <form id="loginForm" onsubmit="handleEmailPinLogin(event)">
       <div class="mb-3">
         <label class="form-label required">Email Address</label>
@@ -56,6 +136,7 @@
       <button type="submit" class="btn btn-primary w-100 py-2 fw-bold">Secure Access Login</button>
     </form>
 
+    <!-- REGISTER FORM -->
     <form id="registerForm" style="display: none;" onsubmit="handleProfileRegister(event)">
       <div class="mb-3">
         <label class="form-label required">User / Business Name</label>
@@ -73,32 +154,23 @@
         <label class="form-label required">Set 6-Digit Secure PIN</label>
         <input type="password" id="regPin" class="form-control" oninput="if(this.value.length > 6) this.value = this.value.slice(0,6);" required placeholder="e.g. 123456">
       </div>
-      <button type="submit" class="btn btn-success w-100 py-2 fw-bold">Register Profile & Start Trial</button>
+      <button type="submit" class="btn btn-success w-100 py-2 fw-bold">Register Profile & Start 45-Day Trial</button>
     </form>
 
-    <!-- ================================================================
-         NEW FORM #1: FORGOT PIN — User apna email daalta hai,
-         Supabase reset link email par bhejta hai.
-         redirectTo wahi page hona chahiye jahan "Set New PIN" form hai.
-    ================================================================ -->
+    <!-- FORGOT PIN FORM -->
     <form id="forgotForm" style="display: none;" onsubmit="handleForgotPin(event)">
-      <p class="text-muted small mb-3">Apna registered Email daalo. Aapko ek secure Reset Link milega jisme aap naya 6-digit PIN set kar sakte hain.</p>
+      <p class="text-muted small mb-3">Apna registered Email daalo. Aapko ek secure Reset Link milega.</p>
       <div class="mb-3">
         <label class="form-label required">Registered Email Address</label>
         <input type="email" id="forgotEmail" class="form-control" required placeholder="name@company.com">
       </div>
       <button type="submit" class="btn btn-warning w-100 py-2 fw-bold text-dark">📧 Send PIN Reset Link</button>
-      <p class="text-muted small mt-2 text-center">Reset link aapke email inbox mein aayega (spam bhi check karein).</p>
+      <p class="text-muted small mt-2 text-center">Reset link email inbox mein aayega (spam bhi check karein).</p>
     </form>
 
-    <!-- ================================================================
-         NEW FORM #2: SET NEW PIN — Yeh form tab dikhega jab user
-         email ka reset link click karke wapas page par aayega.
-         URL mein Supabase ka #access_token automatically aata hai
-         jisse hum naya PIN (password) set kar sakte hain.
-    ================================================================ -->
+    <!-- RESET PIN FORM — email link click karne ke baad dikhega -->
     <form id="resetPinForm" style="display: none;" onsubmit="handleSetNewPin(event)">
-      <p class="text-success small mb-3 fw-bold">✅ Reset link verified! Ab apna naya 6-digit Secure PIN set karein.</p>
+      <p class="text-success small mb-3 fw-bold">✅ Reset link verified! Naya 6-digit PIN set karein.</p>
       <div class="mb-3">
         <label class="form-label required">New 6-Digit Secure PIN</label>
         <input type="password" id="newPin" class="form-control" oninput="if(this.value.length > 6) this.value = this.value.slice(0,6);" required placeholder="New PIN (6 digits)">
@@ -111,11 +183,26 @@
     </form>
   </div>
 
+  <!-- MAIN DASHBOARD -->
   <div id="mainDashboard" class="container-fluid p-0">
+
+    <!-- NEW: Trial warning banner — last 7 din mein dikhega -->
+    <div id="trialWarningBanner">
+      ⚠️ <span id="trialWarningText"></span> &nbsp;|&nbsp;
+      <a href="https://razorpay.me/@tusharratansukh" target="_blank" style="color:#fbbf24; font-weight:800;">
+        Abhi Pay Karein →
+      </a>
+    </div>
+
     <div class="header-panel d-flex justify-content-between align-items-center px-4">
       <div>
         <h2 class="fw-bold mb-0 text-white">BIKETRACK PRO SYSTEM</h2>
-        <p class="mb-0 text-info">Operator Profile: <span id="userDisplay" class="fw-bold text-warning">Loading...</span> | Status: <span id="statusDisplay" class="badge bg-warning text-dark">TRIAL</span></p>
+        <!-- NEW: Trial days remaining bhi dikhega status ke saath -->
+        <p class="mb-0 text-info">
+          Operator: <span id="userDisplay" class="fw-bold text-warning">Loading...</span> |
+          Status: <span id="statusDisplay" class="badge bg-warning text-dark">TRIAL</span> |
+          <span id="trialDaysDisplay" class="small text-info"></span>
+        </p>
       </div>
       <button onclick="logoutUser()" class="btn btn-outline-danger btn-sm fw-bold px-3">Sign Out</button>
     </div>
@@ -150,15 +237,12 @@
             <div class="col-md-2"><label class="form-label required">Relation Type</label><select id="colRelationType" class="form-select"><option value="S/o">S/o</option><option value="W/o">W/o</option><option value="D/o">D/o</option></select></div>
             <div class="col-md-3"><label class="form-label required">Relation Name</label><input type="text" id="colRelationName" class="form-control" required placeholder="FATHER/HUSBAND NAME" style="text-transform: uppercase;"></div>
             <div class="col-md-3"><label class="form-label required">Customer Mobile No</label><input type="number" id="colCustMobile" class="form-control" oninput="if(this.value.length > 10) this.value = this.value.slice(0,10);" required placeholder="10 Digit Mobile"></div>
-            
             <div class="col-md-3"><label class="form-label required">EMI Amount (₹)</label><input type="number" id="colEmiAmount" class="form-control" required placeholder="0" min="0" oninput="calculateBalance()"></div>
             <div class="col-md-3"><label class="form-label required">Amount Paid (₹)</label><input type="number" id="colAmountPaid" class="form-control" required placeholder="0" min="0" oninput="calculateBalance()"></div>
             <div class="col-md-3"><label class="form-label">Balance Amount (₹)</label><input type="number" id="colBalanceAmount" class="form-control bg-dark text-warning fw-bold" readonly value="0"></div>
             <div class="col-md-3"><label class="form-label required">Payment Mode</label><select id="colMode" class="form-select"><option value="Cash">Cash</option><option value="UPI">UPI</option></select></div>
-            
             <div class="col-md-4"><label class="form-label required">Receipt Type</label><select id="colReceiptType" class="form-select"><option value="Advance">Advance</option><option value="Current Month">Current Month</option><option value="Overdue">Overdue</option><option value="Funding">Funding</option><option value="Penalty">Penalty</option><option value="Others">Others</option></select></div>
             <div class="col-md-8"><label class="form-label">Remark</label><input type="text" id="colRemark" class="form-control" placeholder="Optional collection remarks"></div>
-            
             <div class="col-md-12 d-flex justify-content-end mt-4"><button type="submit" class="btn btn-success px-5 py-2 fw-bold">💾 Save Entry To Supabase</button></div>
           </div>
         </form>
@@ -185,21 +269,12 @@
             <button onclick="exportToPDF()" class="btn btn-danger btn-sm fw-bold px-3">📥 Export PDF</button>
           </div>
         </div>
-
         <div class="table-responsive">
           <table class="table table-dark table-hover border border-secondary mb-0" id="ledgerTable">
             <thead>
               <tr>
-                <th>Collected At</th>
-                <th>Customer Name</th>
-                <th>Relation</th>
-                <th>Mobile</th>
-                <th>EMI (₹)</th>
-                <th>Paid (₹)</th>
-                <th>Balance (₹)</th>
-                <th>Mode</th>
-                <th>Receipt Type</th>
-                <th>Remark</th>
+                <th>Collected At</th><th>Customer Name</th><th>Relation</th><th>Mobile</th>
+                <th>EMI (₹)</th><th>Paid (₹)</th><th>Balance (₹)</th><th>Mode</th><th>Receipt Type</th><th>Remark</th>
               </tr>
             </thead>
             <tbody id="collectionTableBody">
@@ -208,25 +283,53 @@
           </table>
         </div>
       </div>
-
     </div>
   </div>
 
   <div id="loading" class="position-fixed top-50 start-50 translate-middle d-none bg-dark text-white p-3 rounded-3" style="z-index: 9999;">Processing Secure Request...</div>
 
   <script>
-    const SUPABASE_URL = "https://efnrjifrfdhwzlpcqdbp.supabase.co"; 
+    const SUPABASE_URL = "https://efnrjifrfdhwzlpcqdbp.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmbnJqaWZyZmRod3pscGNxZGJwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4MDk2MDAsImV4cCI6MjA5NjM4NTYwMH0.f4foYQtbTYXyL63LuvA_S3ilM64UEuRwYYn_qxCTk54";
-
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    
-    let cachedRecords = []; 
+
+    // ============================================================
+    // NEW CONSTANTS: Trial configuration
+    // -- Sirf yahan change karo agar trial period badlana ho
+    // ============================================================
+    const TRIAL_DAYS = 45;              // 45 din ka free trial
+    const TRIAL_WARNING_DAYS = 7;       // Last 7 din mein warning banner dikhega
+    const RAZORPAY_LINK = "https://razorpay.me/@tusharratansukh"; // Payment link
+
+    let cachedRecords = [];
     let activeProfileInfo = null;
     let currentUserSession = null;
 
+    // ============================================================
+    // PAGE LOAD: Reset token check + normal session check
+    // ============================================================
     window.onload = async function() {
+      // Pehle URL mein reset token check karo (Forgot PIN flow)
+      const hashParams = new URLSearchParams(window.location.hash.replace('#', '?').slice(1));
+      const accessToken = hashParams.get('access_token');
+      const tokenType = hashParams.get('type');
+
+      if (accessToken && tokenType === 'recovery') {
+        const { error } = await supabaseClient.auth.setSession({
+          access_token: accessToken,
+          refresh_token: hashParams.get('refresh_token') || ''
+        });
+        if (!error) {
+          showScreen('auth');
+          switchAuthTab('reset');
+          showAlert('auth', '🔐 Reset link verified! Naya 6-digit PIN set karein.', 'show', 'success');
+          return;
+        }
+      }
+
+      // Normal login session check
       toggleLoader(true);
-      const { data: { session }, error } = await supabaseClient.auth.getSession();
+      const { data: { session } } = await supabaseClient.auth.getSession();
       if (session) {
         await loadUserProfileAndDashboard(session);
       } else {
@@ -250,7 +353,78 @@
       document.getElementById('colBalanceAmount').value = (emi - paid >= 0) ? (emi - paid) : 0;
     }
 
-    // ==================== FIXED REGISTRATION (METADATA APPROACH FOR TRIGGER) ====================
+    // ============================================================
+    // NEW FUNCTION: checkTrialStatus
+    // -- Profile load hone ke baad yeh function call hota hai
+    // -- Trial days calculate karta hai aur sahi action leta hai:
+    //    1. ACTIVE user → kuch nahi, seedha dashboard
+    //    2. TRIAL user → din calculate karo:
+    //       a. 45 din se zyada → expired overlay dikhao
+    //       b. Last 7 din → warning banner dikhao
+    //       c. Normal → sirf days remaining dikhao
+    // ============================================================
+    function checkTrialStatus(profile) {
+      // ACTIVE subscription wale users ko koi check nahi
+      if (profile.subscription_status === 'ACTIVE') {
+        document.getElementById('statusDisplay').className = 'badge bg-success';
+        document.getElementById('statusDisplay').innerText = 'ACTIVE';
+        document.getElementById('trialDaysDisplay').innerText = '✅ Premium Member';
+        return; // Koi restriction nahi
+      }
+
+      // Trial user ke liye din calculate karo
+      // trial_start_date profile mein store hai (Supabase column)
+      // Agar column nahi hai toh created_at use karo fallback ke liye
+      const startDateRaw = profile.trial_start_date || profile.created_at;
+
+      if (!startDateRaw) {
+        // Date nahi mili — expired treat karo (safe default)
+        showTrialExpiredOverlay();
+        return;
+      }
+
+      const startDate = new Date(startDateRaw);
+      const today = new Date();
+
+      // Milliseconds se days mein convert karo
+      const msPerDay = 1000 * 60 * 60 * 24;
+      const daysUsed = Math.floor((today - startDate) / msPerDay);
+      const daysLeft = TRIAL_DAYS - daysUsed;
+
+      console.log(`Trial: ${daysUsed} din use hue, ${daysLeft} din bache`);
+
+      if (daysLeft <= 0) {
+        // ---- TRIAL EXPIRED: Overlay dikhao, dashboard block karo ----
+        showTrialExpiredOverlay();
+
+      } else if (daysLeft <= TRIAL_WARNING_DAYS) {
+        // ---- WARNING ZONE: Last 7 din — banner dikhao ----
+        const banner = document.getElementById('trialWarningBanner');
+        document.getElementById('trialWarningText').innerText =
+          `⚠️ Aapka Trial sirf ${daysLeft} din mein khatam ho raha hai! Abhi payment karein.`;
+        banner.classList.add('show');
+        document.getElementById('trialDaysDisplay').innerText = `Trial: ${daysLeft} din bache`;
+        document.getElementById('statusDisplay').className = 'badge bg-danger';
+
+      } else {
+        // ---- NORMAL TRIAL: Sirf din remaining dikhao ----
+        document.getElementById('trialDaysDisplay').innerText = `Trial: ${daysLeft} din bache`;
+        document.getElementById('statusDisplay').className = 'badge bg-warning text-dark';
+        document.getElementById('statusDisplay').innerText = 'TRIAL';
+      }
+    }
+
+    // ============================================================
+    // NEW FUNCTION: showTrialExpiredOverlay
+    // -- Poori screen cover karta hai, dashboard disable ho jaata hai
+    // ============================================================
+    function showTrialExpiredOverlay() {
+      document.getElementById('trialExpiredOverlay').classList.add('show');
+    }
+
+    // ============================================================
+    // REGISTRATION — trial_start_date bhi save karo
+    // ============================================================
     async function handleProfileRegister(e) {
       e.preventDefault();
       toggleLoader(true);
@@ -261,63 +435,39 @@
       const mobile = document.getElementById('regMobile').value;
       const pin = document.getElementById('regPin').value;
 
-      if(mobile.length !== 10) { toggleLoader(false); return showAlert('auth', 'Mobile number strictly 10 digits ka hona chahiye!'); }
-      if(pin.length !== 6) { toggleLoader(false); return showAlert('auth', 'PIN strictly 6 digits ka banayein!'); }
+      if (mobile.length !== 10) { toggleLoader(false); return showAlert('auth', 'Mobile number strictly 10 digits ka hona chahiye!'); }
+      if (pin.length !== 6) { toggleLoader(false); return showAlert('auth', 'PIN strictly 6 digits ka banayein!'); }
 
-      // Hum metadata bhej rahe hain taaki Postgres function ise read karke sahi se data insert kare
       const { data: authData, error: authError } = await supabaseClient.auth.signUp({
-        email: email,
-        password: `secure_pin_${pin}`, 
-        options: {
-          data: {
-            user_name: name,   
-            mobile_no: mobile, 
-            pin: pin           
-          }
-        }
+        email, password: `secure_pin_${pin}`,
+        options: { data: { user_name: name, mobile_no: mobile, pin } }
       });
 
       if (authError) {
         showAlert('auth', "Registration Error: " + authError.message);
       } else if (authData.user) {
-        // =====================================================================
-        // FIX #1 — REGISTRATION KE BAAD MANUAL PROFILE UPSERT
-        // -------------------------------------------------------
-        // Problem: Supabase ka database trigger (jo auth.users se profiles
-        // table mein data copy karta hai) kabhi kabhi slow hota hai ya
-        // configure nahi hota — isliye profile row login time tak exist
-        // nahi karti aur dashboard silently auth screen par wapas chala jaata hai.
-        //
-        // Solution: Registration successful hone ke TURANT BAAD hum khud
-        // 'profiles' table mein user ka data upsert kar dete hain.
-        // Agar trigger pehle se row bana chuka hai toh yeh kuch nahi karega
-        // (onConflict: 'id' se duplicate ignore ho jaata hai).
-        // Agar trigger slow hai toh yeh row pehle se ready mil jaayegi login par.
-        // =====================================================================
-        const { error: profileError } = await supabaseClient
-          .from('profiles')
-          .upsert([{
-            id: authData.user.id,        // Auth user ka same UUID
-            user_name: name,             // Registration form se naam
-            mobile_no: mobile,           // 10-digit mobile
-            pin: pin,                    // 6-digit PIN (aapke DB structure ke hisaab se)
-            subscription_status: 'TRIAL' // Default status naya user ke liye
-          }], { onConflict: 'id' });     // Agar already exist kare toh conflict pe update karo
+        // FIX: Registration ke baad manual upsert with trial_start_date
+        // trial_start_date = aaj ki date — 45 din isi se count honge
+        const { error: profileError } = await supabaseClient.from('profiles').upsert([{
+          id: authData.user.id,
+          user_name: name,
+          mobile_no: mobile,
+          pin: pin,
+          subscription_status: 'TRIAL',
+          trial_start_date: new Date().toISOString()  // NEW: Trial shuru aaj se
+        }], { onConflict: 'id' });
 
-        // Profile insert fail hone par bhi registration success dikhao —
-        // kyunki auth user ban gaya hai, profile baad mein sync ho sakti hai.
-        // Sirf console mein log karo taaki developer debug kar sake.
-        if (profileError) {
-          console.warn("Profile upsert warning (non-critical):", profileError.message);
-        }
+        if (profileError) console.warn("Profile upsert warning:", profileError.message);
 
-        showAlert('auth', 'Registration Successful! Login using your Email & 6-digit PIN.', 'show', 'success');
+        showAlert('auth', `✅ Registration Successful! Aapka ${TRIAL_DAYS}-din ka Free Trial shuru ho gaya. Login karein.`, 'show', 'success');
         switchAuthTab('login');
       }
       toggleLoader(false);
     }
 
-    // ==================== LIVE EMAIL + 6-DIGIT PIN AUTHENTICATION LOGIN ====================
+    // ============================================================
+    // LOGIN
+    // ============================================================
     async function handleEmailPinLogin(e) {
       e.preventDefault();
       toggleLoader(true);
@@ -327,146 +477,83 @@
       const pin = document.getElementById('loginPin').value;
 
       const { data, error } = await supabaseClient.auth.signInWithPassword({
-        email: email,
-        password: `secure_pin_${pin}`
+        email, password: `secure_pin_${pin}`
       });
 
       if (error) {
-        showAlert('auth', 'Login Failed: Invalid Email address or 6-digit Security PIN!');
+        showAlert('auth', 'Login Failed: Invalid Email or 6-digit Security PIN!');
         toggleLoader(false);
       } else if (data.session) {
         await loadUserProfileAndDashboard(data.session);
       }
     }
 
-    // ==================== SAFE PROFILE SYNC & DASHBOARD LOAD (WITH RETRY + FALLBACK) ====================
+    // ============================================================
+    // PROFILE LOAD WITH RETRY + TRIAL CHECK
+    // ============================================================
     async function loadUserProfileAndDashboard(session) {
       currentUserSession = session;
-      
+
       try {
-        // =====================================================================
-        // FIX #2 — PROFILE FETCH MEIN RETRY LOGIC ADD KIYA GAYA
-        // -------------------------------------------------------
-        // Problem (purana code): Pehle sirf ek baar profile fetch hoti thi.
-        // Agar woh empty aati (trigger slow hone se), toh seedha auth screen
-        // dikhata tha — koi error message nahi, koi retry nahi.
-        // User sochta tha app stuck hai ya crash ho gaya.
-        //
-        // Solution (naya code): Ab hum 3 baar try karte hain har 1.5 second
-        // ke baad. Agar phir bhi profile nahi milti toh Fallback #2 activate
-        // hota hai — hum auth.users se metadata read karke ek emergency profile
-        // khud bana dete hain aur user ko dashboard dikha dete hain bina
-        // kisi error ke.
-        // =====================================================================
-
         let profile = null;
-
-        // --- RETRY ATTEMPT: 3 baar profile dhundho, 1500ms delay ke saath ---
-        const MAX_RETRY = 3;          // Kitni baar try karna hai
-        const RETRY_DELAY_MS = 1500;  // Har retry ke beech kitna wait karna hai
+        const MAX_RETRY = 3;
+        const RETRY_DELAY_MS = 1500;
 
         for (let attempt = 1; attempt <= MAX_RETRY; attempt++) {
-          console.log(`Profile fetch attempt ${attempt}/${MAX_RETRY}...`);
-
           const { data: profiles, error } = await supabaseClient
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id);
+            .from('profiles').select('*').eq('id', session.user.id);
 
-          // Agar query successful rahi aur data mila
           if (!error && profiles && profiles.length > 0) {
             profile = profiles[0];
-            console.log("Profile found on attempt", attempt);
-            break; // Loop se bahar nikal jao
+            break;
           }
-
-          // Agar yeh last attempt nahi hai toh wait karke dobara try karo
-          if (attempt < MAX_RETRY) {
-            console.warn(`Profile not found on attempt ${attempt}, retrying in ${RETRY_DELAY_MS}ms...`);
-            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
-          }
+          if (attempt < MAX_RETRY) await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
         }
 
-        // =====================================================================
-        // FIX #3 — FALLBACK: AUTH METADATA SE EMERGENCY PROFILE BANANA
-        // -------------------------------------------------------
-        // Agar 3 retries ke baad bhi profiles table mein kuch nahi mila,
-        // toh hum Supabase Auth ke user_metadata se data uthate hain
-        // (jo registration ke time `options.data` mein bheja tha).
-        // Yeh data HAMESHA available hota hai kyunki yeh auth.users mein store
-        // hota hai, profiles table ke trigger par depend nahi karta.
-        //
-        // Phir hum ek fallback profile object banate hain aur profiles table
-        // mein insert karne ki koshish karte hain taaki agle login par
-        // normal flow kaam kare.
-        // =====================================================================
+        // Fallback: auth metadata se profile banao
         if (!profile) {
-          console.warn("All retries exhausted. Activating metadata fallback...");
-
-          // Auth user ka metadata padho (jo registration mein bheja tha)
           const meta = session.user.user_metadata || {};
-
-          // Fallback profile object — DB row jaisa structure
           profile = {
             id: session.user.id,
-            user_name: meta.user_name || session.user.email, // Naam ya email fallback
-            mobile_no: meta.mobile_no || "N/A",
-            subscription_status: "TRIAL"
+            user_name: meta.user_name || session.user.email,
+            mobile_no: meta.mobile_no || 'N/A',
+            subscription_status: 'TRIAL',
+            trial_start_date: session.user.created_at  // Auth user created_at fallback
           };
-
-          // Background mein profiles table mein save karne ki koshish karo
-          // (taaki agle baar normal fetch kaam kare)
+          // Background mein save karo
           supabaseClient.from('profiles').upsert([{
-            id: profile.id,
-            user_name: profile.user_name,
-            mobile_no: profile.mobile_no,
-            subscription_status: profile.subscription_status
-          }], { onConflict: 'id' }).then(({ error: upsertErr }) => {
-            if (upsertErr) {
-              console.warn("Background profile upsert failed:", upsertErr.message);
-            } else {
-              console.log("Background profile upsert successful.");
-            }
+            ...profile, pin: meta.pin || ''
+          }], { onConflict: 'id' }).then(({ error: e }) => {
+            if (e) console.warn("Fallback upsert failed:", e.message);
           });
         }
 
-        // Ab profile guaranteed available hai (ya real ya fallback)
         activeProfileInfo = profile;
-        
-        // Data dashboard text elements par render karein
         document.getElementById('userDisplay').innerText = profile.user_name;
         document.getElementById('statusDisplay').innerText = profile.subscription_status;
-        
-        if(profile.subscription_status === 'ACTIVE') {
-          document.getElementById('statusDisplay').className = "badge bg-success";
-        }
-        
+
         showScreen('dashboard');
+
+        // NEW: Trial status check — expired? warning? active?
+        checkTrialStatus(profile);
+
         await fetchCloudRecords();
-        
+
       } catch (err) {
-        // =====================================================================
-        // FIX #4 — CATCH BLOCK MEIN DESCRIPTIVE ERROR MESSAGE
-        // -------------------------------------------------------
-        // Purana code: Sirf auth screen dikhata tha — user confused ho jaata tha.
-        // Naya code: Console mein detailed error + user ko ek helpful alert.
-        // =====================================================================
-        console.error("Critical dashboard load error:", err.message);
-        showAlert('auth', 'Session load karne mein problem aayi. Dobara login karein.');
+        console.error("Dashboard load error:", err.message);
+        showAlert('auth', 'Session load mein problem. Dobara login karein.');
         showScreen('auth');
       }
       toggleLoader(false);
     }
 
-    // ==================== REALTIME CLOUD COLLECTIONS LOG ====================
+    // ============================================================
+    // CLOUD RECORDS FETCH
+    // ============================================================
     async function fetchCloudRecords() {
-      if(!currentUserSession) return;
-      
+      if (!currentUserSession) return;
       const { data, error } = await supabaseClient
-        .from('collections')
-        .select('*')
-        .order('collected_at', { ascending: false });
-
+        .from('collections').select('*').order('collected_at', { ascending: false });
       if (!error && data) {
         cachedRecords = data;
         renderLedger(cachedRecords);
@@ -474,15 +561,17 @@
       }
     }
 
+    // ============================================================
+    // COLLECTION SUBMIT
+    // ============================================================
     async function handleCollectionSubmit(e) {
       e.preventDefault();
-      if(!currentUserSession || !activeProfileInfo) return alert("Authorization scope missing.");
+      if (!currentUserSession || !activeProfileInfo) return alert("Authorization scope missing.");
 
       const mobile = document.getElementById('colCustMobile').value;
-      if(mobile.length !== 10) return alert("Customer mobile number must be exactly 10 digits!");
+      if (mobile.length !== 10) return alert("Customer mobile number must be exactly 10 digits!");
 
       toggleLoader(true);
-
       const newEntry = {
         user_id: currentUserSession.user.id,
         customer_name: document.getElementById('colCustName').value.toUpperCase(),
@@ -501,9 +590,8 @@
       };
 
       const { error } = await supabaseClient.from('collections').insert([newEntry]);
-
       if (error) {
-        alert("Database Synchronization Error: " + error.message);
+        alert("Database Error: " + error.message);
       } else {
         document.getElementById('collectionForm').reset();
         document.getElementById('colBalanceAmount').value = "0";
@@ -526,16 +614,13 @@
     function renderLedger(recordsList) {
       const tbody = document.getElementById('collectionTableBody');
       tbody.innerHTML = "";
-
-      if(recordsList.length === 0) {
+      if (recordsList.length === 0) {
         tbody.innerHTML = `<tr><td colspan="10" class="text-center text-muted py-4">No enterprise metrics captured yet.</td></tr>`;
         return;
       }
-
       recordsList.forEach(r => {
-        const dateString = new Date(r.collected_at).toLocaleString();
         tbody.innerHTML += `<tr>
-          <td>${dateString}</td>
+          <td>${new Date(r.collected_at).toLocaleString()}</td>
           <td class="text-warning fw-bold">${r.customer_name}</td>
           <td><small>${r.relation_type} ${r.relation_name}</small></td>
           <td>${r.cust_mobile}</td>
@@ -553,221 +638,97 @@
       const targetDate = document.getElementById('filterDate').value;
       const targetMonth = document.getElementById('filterMonth').value;
       const targetType = document.getElementById('filterReceiptType').value;
-
       let filtered = cachedRecords;
-
-      if(targetDate) filtered = filtered.filter(r => r.collected_at.startsWith(targetDate));
-      if(targetMonth) filtered = filtered.filter(r => r.collected_at.substring(5, 7) === targetMonth);
-      if(targetType) filtered = filtered.filter(r => r.receipt_type === targetType);
-
+      if (targetDate) filtered = filtered.filter(r => r.collected_at.startsWith(targetDate));
+      if (targetMonth) filtered = filtered.filter(r => r.collected_at.substring(5, 7) === targetMonth);
+      if (targetType) filtered = filtered.filter(r => r.receipt_type === targetType);
       renderLedger(filtered);
       calculateTopMetrics(filtered);
     }
 
     function exportToPDF() {
       const { jsPDF } = window.jspdf;
-      const doc = new jsPDF('l', 'mm', 'a4'); 
+      const doc = new jsPDF('l', 'mm', 'a4');
       doc.setFont("sans-serif", "bold");
       doc.text("BIKETRACK PRO - COLLECTION LEDGER REPORT", 14, 15);
-      
       const tableRows = [];
       const rows = document.querySelectorAll("#collectionTableBody tr");
-      if(rows[0] && rows[0].innerText.includes("No data")) return alert("No ledger logs found to export!");
-
+      if (rows[0] && rows[0].innerText.includes("No data")) return alert("No logs to export!");
       rows.forEach(row => {
         const tdList = row.querySelectorAll("td");
-        if(tdList.length > 1) {
-           tableRows.push(Array.from(tdList).map(td => td.innerText.replace(/₹/g, "Rs. ")));
-        }
+        if (tdList.length > 1) tableRows.push(Array.from(tdList).map(td => td.innerText.replace(/₹/g, "Rs. ")));
       });
-
       doc.autoTable({
         head: [['Collected At', 'Customer Name', 'Relation', 'Mobile', 'EMI', 'Paid', 'Balance', 'Mode', 'Receipt Type', 'Remark']],
-        body: tableRows,
-        startY: 25,
-        theme: 'grid',
-        styles: { fontSize: 8 }
+        body: tableRows, startY: 25, theme: 'grid', styles: { fontSize: 8 }
       });
-      doc.save(`Report_${new Date().toISOString().slice(0,10)}.pdf`);
+      doc.save(`Report_${new Date().toISOString().slice(0, 10)}.pdf`);
     }
 
     async function logoutUser() {
       await supabaseClient.auth.signOut();
       currentUserSession = null;
       activeProfileInfo = null;
+      // Overlay hide karo logout par
+      document.getElementById('trialExpiredOverlay').classList.remove('show');
       showScreen('auth');
     }
 
-    function switchAuthTab(tab) {
-      document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none';
-      document.getElementById('registerForm').style.display = tab === 'register' ? 'block' : 'none';
-      // NEW: forgot aur resetPinForm bhi toggle karein
-      document.getElementById('forgotForm').style.display = tab === 'forgot' ? 'block' : 'none';
-      document.getElementById('resetPinForm').style.display = tab === 'reset' ? 'block' : 'none';
-      document.getElementById('tab-login').classList.toggle('active', tab === 'login');
-      document.getElementById('tab-register').classList.toggle('active', tab === 'register');
-      // NEW: forgot tab highlight
-      document.getElementById('tab-forgot').classList.toggle('active', tab === 'forgot');
-    }
-
-    // ================================================================
-    // NEW FUNCTION: handleForgotPin
-    // ---------------------------------------------------------------
-    // User apna email submit karta hai.
-    // Supabase us email par ek secure reset link bhejta hai.
-    // "redirectTo" mein aapki site ka URL daalna zaroori hai —
-    // Supabase wahi URL par #access_token append karke redirect karega.
-    // Supabase Dashboard > Authentication > URL Configuration mein
-    // yeh URL "Redirect URLs" mein whitelist hona chahiye.
-    // ================================================================
+    // ============================================================
+    // FORGOT PIN — Email se reset link bhejo
+    // ============================================================
     async function handleForgotPin(e) {
       e.preventDefault();
       toggleLoader(true);
       showAlert('auth', '', 'hide');
-
       const email = document.getElementById('forgotEmail').value;
       const currentPageUrl = window.location.href.split('#')[0];
-
-      // DEBUG: Console mein sab kuch print karo
-      console.log("=== FORGOT PIN DEBUG ===");
-      console.log("Email:", email);
-      console.log("Redirect URL:", currentPageUrl);
-      console.log("Supabase URL:", SUPABASE_URL);
-
-      let result;
-      try {
-        result = await supabaseClient.auth.resetPasswordForEmail(email, {
-          redirectTo: currentPageUrl
-        });
-        // DEBUG: Poora Supabase response print karo
-        console.log("Supabase full response:", JSON.stringify(result));
-      } catch(catchErr) {
-        // Agar koi unexpected JS error aaye
-        console.error("Unexpected JS error:", catchErr);
-        showAlert('auth', 'Unexpected error: ' + catchErr.message);
-        toggleLoader(false);
-        return;
-      }
-
-      const { data, error } = result;
-
+      const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo: currentPageUrl });
       if (error) {
-        // ERROR details poori tarah dikhao
-        console.error("Supabase error object:", error);
-        console.error("Error message:", error.message);
-        console.error("Error status:", error.status);
-        showAlert('auth', '❌ Error: ' + error.message + ' (Status: ' + (error.status || 'unknown') + ')');
+        showAlert('auth', '❌ Error: ' + error.message);
       } else {
-        console.log("Success! data:", data);
-        showAlert('auth',
-          '✅ Reset link bhej diya gaya! Apna email inbox check karein (spam folder bhi).',
-          'show', 'success'
-        );
+        showAlert('auth', '✅ Reset link bhej diya! Inbox check karein (spam bhi).', 'show', 'success');
       }
       toggleLoader(false);
     }
 
-    // ================================================================
-    // NEW FUNCTION: handleSetNewPin
-    // ---------------------------------------------------------------
-    // User email ka reset link click karta hai → page reload hota hai
-    // URL mein #access_token aata hai → hum detect karte hain →
-    // "Set New PIN" form dikhate hain → User naya PIN daalta hai →
-    // Supabase ka updateUser() function se password update hota hai.
-    // ================================================================
+    // ============================================================
+    // SET NEW PIN — Reset token ke baad naya PIN save karo
+    // ============================================================
     async function handleSetNewPin(e) {
       e.preventDefault();
       toggleLoader(true);
       showAlert('auth', '', 'hide');
-
       const newPin = document.getElementById('newPin').value;
       const confirmPin = document.getElementById('confirmPin').value;
-
-      // Validation: dono PIN match karein
-      if (newPin !== confirmPin) {
-        showAlert('auth', 'Dono PIN match nahi kar rahe! Dobara check karein.');
-        toggleLoader(false);
-        return;
-      }
-
-      if (newPin.length !== 6) {
-        showAlert('auth', 'PIN exactly 6 digits ka hona chahiye!');
-        toggleLoader(false);
-        return;
-      }
-
-      // Supabase ka updateUser — session already set hai reset token se
-      const { error } = await supabaseClient.auth.updateUser({
-        password: `secure_pin_${newPin}`  // Wahi format jo login mein use hota hai
-      });
-
+      if (newPin !== confirmPin) { showAlert('auth', 'Dono PIN match nahi kar rahe!'); toggleLoader(false); return; }
+      if (newPin.length !== 6) { showAlert('auth', 'PIN exactly 6 digits ka hona chahiye!'); toggleLoader(false); return; }
+      const { error } = await supabaseClient.auth.updateUser({ password: `secure_pin_${newPin}` });
       if (error) {
-        showAlert('auth', 'PIN update karne mein error: ' + error.message);
+        showAlert('auth', 'PIN update error: ' + error.message);
       } else {
-        // PIN update successful — profiles table mein bhi update karo (optional sync)
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (session) {
-          await supabaseClient
-            .from('profiles')
-            .update({ pin: newPin })
-            .eq('id', session.user.id);
+          await supabaseClient.from('profiles').update({ pin: newPin }).eq('id', session.user.id);
         }
-
-        showAlert('auth',
-          '🎉 Naya PIN successfully set ho gaya! Ab apne Email aur naye PIN se login karein.',
-          'show', 'success'
-        );
-        // URL se hash saaf karo aur login tab par wapas lo
+        showAlert('auth', '🎉 Naya PIN set ho gaya! Login karein.', 'show', 'success');
         window.history.replaceState(null, '', window.location.pathname);
         setTimeout(() => switchAuthTab('login'), 2000);
       }
       toggleLoader(false);
     }
 
-    // ================================================================
-    // NEW: PAGE LOAD PAR RESET TOKEN DETECT KARNA
-    // ---------------------------------------------------------------
-    // Jab user email mein reset link click karta hai, Supabase
-    // URL mein #access_token=...&type=recovery append karta hai.
-    // Hum page load par yeh check karte hain — agar mila toh
-    // seedha "Set New PIN" form dikhate hain.
-    // Yeh check window.onload ke ANDAR add kiya gaya hai.
-    // ================================================================
-    const _originalOnload = window.onload;
-    window.onload = async function() {
-      // Pehle check karo ki URL mein reset token hai ya nahi
-      const hashParams = new URLSearchParams(window.location.hash.replace('#', '?').slice(1));
-      const accessToken = hashParams.get('access_token');
-      const tokenType = hashParams.get('type');
+    function switchAuthTab(tab) {
+      document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none';
+      document.getElementById('registerForm').style.display = tab === 'register' ? 'block' : 'none';
+      document.getElementById('forgotForm').style.display = tab === 'forgot' ? 'block' : 'none';
+      document.getElementById('resetPinForm').style.display = tab === 'reset' ? 'block' : 'none';
+      document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+      document.getElementById('tab-register').classList.toggle('active', tab === 'register');
+      document.getElementById('tab-forgot').classList.toggle('active', tab === 'forgot');
+    }
 
-      if (accessToken && tokenType === 'recovery') {
-        // Reset token mila — Supabase session set karo
-        const { error } = await supabaseClient.auth.setSession({
-          access_token: accessToken,
-          refresh_token: hashParams.get('refresh_token') || ''
-        });
-
-        if (!error) {
-          // Auth screen dikhao aur seedha reset PIN form par le jao
-          showScreen('auth');
-          switchAuthTab('reset');
-          showAlert('auth', '🔐 Reset link verified! Naya 6-digit PIN set karein.', 'show', 'success');
-          return; // Baaki onload logic mat chalao
-        }
-      }
-
-      // Normal flow — pehle wala onload logic
-      toggleLoader(true);
-      const { data: { session }, error } = await supabaseClient.auth.getSession();
-      if (session) {
-        await loadUserProfileAndDashboard(session);
-      } else {
-        showScreen('auth');
-      }
-      toggleLoader(false);
-    };
-
-    function showAlert(type, message, action='show', state='danger') {
+    function showAlert(type, message, action = 'show', state = 'danger') {
       const alertBox = document.getElementById(type + 'Alert');
       if (action === 'hide') return alertBox.classList.add('d-none');
       alertBox.className = `alert alert-${state}`; alertBox.innerText = message; alertBox.classList.remove('d-none');
