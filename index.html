@@ -284,26 +284,31 @@
         .from('profiles')
         .select('*')
         .eq('id', session.user.id)
-        .single();
+        .maybeSingle(); // .single() ki jagah .maybeSingle() use karein taaki error crash na ho
 
-      if (!error && profile) {
-        // FINAL VALIDATION STEP: Match entered input token pin with live verified db row string token
-        // This ensures the custom logic doesn't bypass if metadata rules fluctuate.
-        activeProfileInfo = profile;
-        document.getElementById('userDisplay').innerText = profile.user_name;
-        document.getElementById('statusDisplay').innerText = profile.subscription_status;
-        
-        if(profile.subscription_status === 'ACTIVE') {
-          document.getElementById('statusDisplay').className = "badge bg-success";
-        }
-        
-        showScreen('dashboard');
-        await fetchCloudRecords();
-      } else {
-        showAlert('auth', 'Profile authorization mismatch configuration error.');
-        showScreen('auth');
+      // Fix: Agar error hai ya profile database mein nahi milti (jaise deleted user)
+      if (error || !profile) {
+        console.log("Old or invalid session detected. Clearing session...");
+        await supabaseClient.auth.signOut(); // Browser se purana invalid session clear karein
+        currentUserSession = null;
+        activeProfileInfo = null;
+        showScreen('auth'); // Wapas login form dikhayein bina error ke
+        return;
       }
+
+      // Agar profile mil gayi, toh normal login process chalayein
+      activeProfileInfo = profile;
+      document.getElementById('userDisplay').innerText = profile.user_name;
+      document.getElementById('statusDisplay').innerText = profile.subscription_status;
+      
+      if(profile.subscription_status === 'ACTIVE') {
+        document.getElementById('statusDisplay').className = "badge bg-success";
+      }
+      
+      showScreen('dashboard');
+      await fetchCloudRecords();
     }
+      
 
     // ==================== REALTIME CLOUD COLLECTIONS LOG (FIXED PLURAL TYPO NAME) ====================
     async function fetchCloudRecords() {
