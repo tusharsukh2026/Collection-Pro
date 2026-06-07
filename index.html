@@ -244,6 +244,37 @@
       if (authError) {
         showAlert('auth', "Registration Error: " + authError.message);
       } else if (authData.user) {
+        // =====================================================================
+        // FIX #1 — REGISTRATION KE BAAD MANUAL PROFILE UPSERT
+        // -------------------------------------------------------
+        // Problem: Supabase ka database trigger (jo auth.users se profiles
+        // table mein data copy karta hai) kabhi kabhi slow hota hai ya
+        // configure nahi hota — isliye profile row login time tak exist
+        // nahi karti aur dashboard silently auth screen par wapas chala jaata hai.
+        //
+        // Solution: Registration successful hone ke TURANT BAAD hum khud
+        // 'profiles' table mein user ka data upsert kar dete hain.
+        // Agar trigger pehle se row bana chuka hai toh yeh kuch nahi karega
+        // (onConflict: 'id' se duplicate ignore ho jaata hai).
+        // Agar trigger slow hai toh yeh row pehle se ready mil jaayegi login par.
+        // =====================================================================
+        const { error: profileError } = await supabaseClient
+          .from('profiles')
+          .upsert([{
+            id: authData.user.id,        // Auth user ka same UUID
+            user_name: name,             // Registration form se naam
+            mobile_no: mobile,           // 10-digit mobile
+            pin: pin,                    // 6-digit PIN (aapke DB structure ke hisaab se)
+            subscription_status: 'TRIAL' // Default status naya user ke liye
+          }], { onConflict: 'id' });     // Agar already exist kare toh conflict pe update karo
+
+        // Profile insert fail hone par bhi registration success dikhao —
+        // kyunki auth user ban gaya hai, profile baad mein sync ho sakti hai.
+        // Sirf console mein log karo taaki developer debug kar sake.
+        if (profileError) {
+          console.warn("Profile upsert warning (non-critical):", profileError.message);
+        }
+
         showAlert('auth', 'Registration Successful! Login using your Email & 6-digit PIN.', 'show', 'success');
         switchAuthTab('login');
       }
@@ -272,28 +303,98 @@
       }
     }
 
-    // ==================== SAFE PROFILE SYNC & DASHBOARD LOAD ====================
+    // ==================== SAFE PROFILE SYNC & DASHBOARD LOAD (WITH RETRY + FALLBACK) ====================
     async function loadUserProfileAndDashboard(session) {
       currentUserSession = session;
       
       try {
-        // Simple select query jo har haal mein response degi
-        const { data: profiles, error } = await supabaseClient
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id);
+        // =====================================================================
+        // FIX #2 — PROFILE FETCH MEIN RETRY LOGIC ADD KIYA GAYA
+        // -------------------------------------------------------
+        // Problem (purana code): Pehle sirf ek baar profile fetch hoti thi.
+        // Agar woh empty aati (trigger slow hone se), toh seedha auth screen
+        // dikhata tha — koi error message nahi, koi retry nahi.
+        // User sochta tha app stuck hai ya crash ho gaya.
+        //
+        // Solution (naya code): Ab hum 3 baar try karte hain har 1.5 second
+        // ke baad. Agar phir bhi profile nahi milti toh Fallback #2 activate
+        // hota hai — hum auth.users se metadata read karke ek emergency profile
+        // khud bana dete hain aur user ko dashboard dikha dete hain bina
+        // kisi error ke.
+        // =====================================================================
 
-        // SAFE RETRY: Agar trigger thoda slow insert karta hai ya data nahi milta, toh retry karein crash karne ke bajay
-        if (error || !profiles || profiles.length === 0) {
-          console.warn("Profile not found immediately, trying fallback sync...");
-          
-          // Agar database mein purana deleted cache hai toh saaf karein aur normal login screen par le jayein
-          toggleLoader(false);
-          showScreen('auth');
-          return;
+        let profile = null;
+
+        // --- RETRY ATTEMPT: 3 baar profile dhundho, 1500ms delay ke saath ---
+        const MAX_RETRY = 3;          // Kitni baar try karna hai
+        const RETRY_DELAY_MS = 1500;  // Har retry ke beech kitna wait karna hai
+
+        for (let attempt = 1; attempt <= MAX_RETRY; attempt++) {
+          console.log(`Profile fetch attempt ${attempt}/${MAX_RETRY}...`);
+
+          const { data: profiles, error } = await supabaseClient
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id);
+
+          // Agar query successful rahi aur data mila
+          if (!error && profiles && profiles.length > 0) {
+            profile = profiles[0];
+            console.log("Profile found on attempt", attempt);
+            break; // Loop se bahar nikal jao
+          }
+
+          // Agar yeh last attempt nahi hai toh wait karke dobara try karo
+          if (attempt < MAX_RETRY) {
+            console.warn(`Profile not found on attempt ${attempt}, retrying in ${RETRY_DELAY_MS}ms...`);
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+          }
         }
 
-        const profile = profiles[0];
+        // =====================================================================
+        // FIX #3 — FALLBACK: AUTH METADATA SE EMERGENCY PROFILE BANANA
+        // -------------------------------------------------------
+        // Agar 3 retries ke baad bhi profiles table mein kuch nahi mila,
+        // toh hum Supabase Auth ke user_metadata se data uthate hain
+        // (jo registration ke time `options.data` mein bheja tha).
+        // Yeh data HAMESHA available hota hai kyunki yeh auth.users mein store
+        // hota hai, profiles table ke trigger par depend nahi karta.
+        //
+        // Phir hum ek fallback profile object banate hain aur profiles table
+        // mein insert karne ki koshish karte hain taaki agle login par
+        // normal flow kaam kare.
+        // =====================================================================
+        if (!profile) {
+          console.warn("All retries exhausted. Activating metadata fallback...");
+
+          // Auth user ka metadata padho (jo registration mein bheja tha)
+          const meta = session.user.user_metadata || {};
+
+          // Fallback profile object — DB row jaisa structure
+          profile = {
+            id: session.user.id,
+            user_name: meta.user_name || session.user.email, // Naam ya email fallback
+            mobile_no: meta.mobile_no || "N/A",
+            subscription_status: "TRIAL"
+          };
+
+          // Background mein profiles table mein save karne ki koshish karo
+          // (taaki agle baar normal fetch kaam kare)
+          supabaseClient.from('profiles').upsert([{
+            id: profile.id,
+            user_name: profile.user_name,
+            mobile_no: profile.mobile_no,
+            subscription_status: profile.subscription_status
+          }], { onConflict: 'id' }).then(({ error: upsertErr }) => {
+            if (upsertErr) {
+              console.warn("Background profile upsert failed:", upsertErr.message);
+            } else {
+              console.log("Background profile upsert successful.");
+            }
+          });
+        }
+
+        // Ab profile guaranteed available hai (ya real ya fallback)
         activeProfileInfo = profile;
         
         // Data dashboard text elements par render karein
@@ -308,7 +409,14 @@
         await fetchCloudRecords();
         
       } catch (err) {
-        console.error("Critical dashboard load error: ", err.message);
+        // =====================================================================
+        // FIX #4 — CATCH BLOCK MEIN DESCRIPTIVE ERROR MESSAGE
+        // -------------------------------------------------------
+        // Purana code: Sirf auth screen dikhata tha — user confused ho jaata tha.
+        // Naya code: Console mein detailed error + user ko ek helpful alert.
+        // =====================================================================
+        console.error("Critical dashboard load error:", err.message);
+        showAlert('auth', 'Session load karne mein problem aayi. Dobara login karein.');
         showScreen('auth');
       }
       toggleLoader(false);
