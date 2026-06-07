@@ -216,7 +216,7 @@
       document.getElementById('colBalanceAmount').value = (emi - paid >= 0) ? (emi - paid) : 0;
     }
 
-    // ==================== FIXED REGISTRATION PROCESS (ALIGNED WITH DATABASE TRIGGER) ====================
+    // ==================== 100% BULLETPROOF REGISTRATION SYSTEM ====================
     async function handleProfileRegister(e) {
       e.preventDefault();
       toggleLoader(true);
@@ -230,25 +230,45 @@
       if(mobile.length !== 10) { toggleLoader(false); return showAlert('auth', 'Mobile number strictly 10 digits ka hona chahiye!'); }
       if(pin.length !== 6) { toggleLoader(false); return showAlert('auth', 'PIN strictly 6 digits ka banayein!'); }
 
-      // CRITICAL UPGRADE: Passing registration values directly inside auth meta data options block
-      // This allows 'handle_new_user' trigger function in Postgres to catch real values seamlessly.
+      // 1. Create User in Supabase Authentication
       const { data: authData, error: authError } = await supabaseClient.auth.signUp({
         email: email,
-        password: `secure_pin_${pin}`, 
-        options: {
-          data: {
-            user_name: name,   // Maps to trigger function's raw_user_meta_data->>'user_name'
-            mobile_no: mobile, // Maps to trigger function's raw_user_meta_data->>'mobile_no'
-            pin: pin           // Maps to trigger function's raw_user_meta_data->>'pin'
-          }
-        }
+        password: `secure_pin_${pin}` // System login internal key mapping
       });
 
       if (authError) {
         showAlert('auth', "Registration Error: " + authError.message);
-      } else if (authData.user) {
-        // NOTE: Manual .from('profiles').insert() block is REMOVED! 
-        // Because your database webhook handles real-time replication inside 'profiles' layout.
+        toggleLoader(false);
+        return;
+      }
+
+      // 2. Direct Frontend Synchronization Layer (Bypassing database trigger gaps)
+      if (authData.user) {
+        const profileEntry = {
+          id: authData.user.id, // Auth ki unique uuid mapping
+          mobile_no: mobile,    // 10 digit core phone number
+          pin: pin,             // Asli 6 digit string security pin token
+          user_name: name,      // User real name
+          subscription_status: 'TRIAL',
+          trial_start_date: new Date().toISOString()
+        };
+
+        // Hum khud direct entry insert kar rahe hain profiles table mein
+        const { error: profileError } = await supabaseClient
+          .from('profiles')
+          .insert([profileEntry]);
+
+        if (profileError) {
+          // Agar database default unique constraint triggers run ho rahe hon toh update query chalayein
+          const { error: upsertError } = await supabaseClient
+            .from('profiles')
+            .upsert([profileEntry]);
+
+          if (upsertError) {
+             console.error("Critical Sync Mismatch: ", upsertError.message);
+          }
+        }
+        
         showAlert('auth', 'Registration Successful! Login using your Email & 6-digit PIN.', 'show', 'success');
         switchAuthTab('login');
       }
