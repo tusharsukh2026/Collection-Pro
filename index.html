@@ -4,13 +4,11 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BikeTrack Pro - Mobile PIN SAAS Dashboard</title>
+  <title>BikeTrack Pro - Secure Enterprise Dashboard</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   
-  <!-- Supabase CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   
-  <!-- PDF Generation Engines -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 
@@ -34,7 +32,6 @@
 </head>
 <body>
 
-  <!-- ==================== 1. CUSTOM MOBILE/PIN AUTH SCREEN ==================== -->
   <div id="authScreen" class="container card p-4">
     <h3 class="text-center mb-4 text-primary fw-bold">BIKETRACK PRO SAAS</h3>
     
@@ -45,38 +42,39 @@
 
     <div id="authAlert" class="alert alert-danger d-none"></div>
 
-    <!-- Login Form via Mobile + PIN -->
-    <form id="loginForm" onsubmit="handleMobileLogin(event)">
+    <form id="loginForm" onsubmit="handleEmailPinLogin(event)">
       <div class="mb-3">
-        <label class="form-label required">Registered Mobile No</label>
-        <input type="number" id="loginMobile" class="form-control" oninput="if(this.value.length > 10) this.value = this.value.slice(0,10);" required placeholder="Enter 10 digit mobile">
+        <label class="form-label required">Email Address</label>
+        <input type="email" id="loginEmail" class="form-control" required placeholder="name@company.com">
       </div>
       <div class="mb-3">
-        <label class="form-label required">4-Digit Secure PIN</label>
-        <input type="password" id="loginPin" class="form-control" oninput="if(this.value.length > 4) this.value = this.value.slice(0,4);" required placeholder="••••">
+        <label class="form-label required">6-Digit Secure PIN</label>
+        <input type="password" id="loginPin" class="form-control" oninput="if(this.value.length > 6) this.value = this.value.slice(0,6);" required placeholder="••••••">
       </div>
       <button type="submit" class="btn btn-primary w-100 py-2 fw-bold">Secure Access Login</button>
     </form>
 
-    <!-- Registration Form based on Profiles Table Schema -->
-    <form id="registerForm" style="display: none;" onsubmit="handleMobileRegister(event)">
+    <form id="registerForm" style="display: none;" onsubmit="handleProfileRegister(event)">
       <div class="mb-3">
         <label class="form-label required">User / Business Name</label>
-        <input type="text" id="regName" class="form-control" required placeholder="e.g. NEW USER" style="text-transform: uppercase;">
+        <input type="text" id="regName" class="form-control" required placeholder="e.g. TUSHAR SUKH" style="text-transform: uppercase;">
+      </div>
+      <div class="mb-3">
+        <label class="form-label required">Email Address</label>
+        <input type="email" id="regEmail" class="form-control" required placeholder="name@company.com">
       </div>
       <div class="mb-3">
         <label class="form-label required">Mobile Number</label>
-        <input type="number" id="regMobile" class="form-control" oninput="if(this.value.length > 10) this.value = this.value.slice(0,10);" required placeholder="10 Digit Number">
+        <input type="number" id="regMobile" class="form-control" oninput="if(this.value.length > 10) this.value = this.value.slice(0,10);" required placeholder="10 Digit Mobile No">
       </div>
       <div class="mb-3">
-        <label class="form-label required">Set 4-Digit Secure PIN</label>
-        <input type="password" id="regPin" class="form-control" oninput="if(this.value.length > 4) this.value = this.value.slice(0,4);" required placeholder="e.g. 0000">
+        <label class="form-label required">Set 6-Digit Secure PIN</label>
+        <input type="password" id="regPin" class="form-control" oninput="if(this.value.length > 6) this.value = this.value.slice(0,6);" required placeholder="e.g. 123456">
       </div>
       <button type="submit" class="btn btn-success w-100 py-2 fw-bold">Register Profile & Start Trial</button>
     </form>
   </div>
 
-  <!-- ==================== 2. MAIN DASHBOARD FRAMEWORK ==================== -->
   <div id="mainDashboard" class="container-fluid p-0">
     <div class="header-panel d-flex justify-content-between align-items-center px-4">
       <div>
@@ -87,7 +85,6 @@
     </div>
 
     <div class="container my-4">
-      <!-- Metrics summary counters -->
       <div class="row g-3 mb-4">
         <div class="col-md-4">
           <div class="card metric-card p-3 border-start border-primary">
@@ -109,7 +106,6 @@
         </div>
       </div>
 
-      <!-- Data Input Matrix -->
       <div class="card p-4 mb-4">
         <h4 class="mb-3 text-primary fw-bold border-bottom border-secondary pb-2">➕ New Collection Data Input Matrix</h4>
         <form id="collectionForm" onsubmit="handleCollectionSubmit(event)">
@@ -127,12 +123,11 @@
             <div class="col-md-4"><label class="form-label required">Receipt Type</label><select id="colReceiptType" class="form-select"><option value="Advance">Advance</option><option value="Current Month">Current Month</option><option value="Overdue">Overdue</option><option value="Funding">Funding</option><option value="Penalty">Penalty</option><option value="Others">Others</option></select></div>
             <div class="col-md-8"><label class="form-label">Remark</label><input type="text" id="colRemark" class="form-control" placeholder="Optional collection remarks"></div>
             
-            <div class="col-md-12 d-flex justify-content-end mt-4"><button type="submit" class="btn btn-success px-5 py-2 fw-bold">💾 Save to Cloud Database</button></div>
+            <div class="col-md-12 d-flex justify-content-end mt-4"><button type="submit" class="btn btn-success px-5 py-2 fw-bold">💾 Save Entry To Supabase</button></div>
           </div>
         </form>
       </div>
 
-      <!-- Ledger Table Log -->
       <div class="card p-4">
         <div class="d-flex flex-wrap justify-content-between align-items-center border-bottom border-secondary pb-3 mb-3">
           <h4 class="text-info fw-bold m-0">📋 Real-Time Collection Ledger Log</h4>
@@ -220,36 +215,34 @@
       document.getElementById('colBalanceAmount').value = (emi - paid >= 0) ? (emi - paid) : 0;
     }
 
-    // ==================== NEW CUSTOM REGISTER LOGIC (PROFILES CONNECTED) ====================
-    async function handleMobileRegister(e) {
+    // ==================== FIXED REGISTRATION PROCESS (EMAIL + METADATA PROFILES MAPPING) ====================
+    async function handleProfileRegister(e) {
       e.preventDefault();
       toggleLoader(true);
       showAlert('auth', '', 'hide');
 
       const name = document.getElementById('regName').value.toUpperCase();
+      const email = document.getElementById('regEmail').value;
       const mobile = document.getElementById('regMobile').value;
       const pin = document.getElementById('regPin').value;
 
       if(mobile.length !== 10) { toggleLoader(false); return showAlert('auth', 'Mobile number strictly 10 digits ka hona chahiye!'); }
-      if(pin.length !== 4) { toggleLoader(false); return showAlert('auth', 'PIN strictly 4 digits ka banayein!'); }
+      if(pin.length !== 6) { toggleLoader(false); return showAlert('auth', 'PIN strictly 6 digits ka banayein!'); }
 
-      const generatedEmail = `${mobile}@biketrack.com`;
-      const generatedPassword = `pin_${pin}_secure`;
-
-      // 1. Create entry in Supabase Native Authentication
+      // 1. Create User standard login via Supabase Authentication engine
       const { data: authData, error: authError } = await supabaseClient.auth.signUp({
-        email: generatedEmail,
-        password: generatedPassword
+        email: email,
+        password: `secure_pin_${pin}` // PIN dynamically converted as system authentication password
       });
 
       if (authError) {
         showAlert('auth', "Registration Error: " + authError.message);
       } else if (authData.user) {
-        // 2. Insert into custom "profiles" table according to image_5a8cc0.png
+        // 2. Maps directly into your dynamic "profiles" schema layout
         const profileEntry = {
-          id: authData.user.id, // Primary key linking uuid
+          id: authData.user.id, // Direct foreign-key sync uuid
           mobile_no: mobile,
-          pin: pin,
+          pin: pin, // Strictly 6 digits text mapping
           user_name: name,
           trial_start_date: new Date().toISOString(),
           subscription_status: 'TRIAL'
@@ -258,34 +251,31 @@
         const { error: profileError } = await supabaseClient.from('profiles').insert([profileEntry]);
 
         if (profileError) {
-          showAlert('auth', "Profile Storage Error: " + profileError.message);
+          showAlert('auth', "Profile Sync Error: " + profileError.message);
         } else {
-          showAlert('auth', 'Registration Successful! Login using your credentials now.', 'show', 'success');
+          showAlert('auth', 'Registration Successful! Login using your Email & 6-digit PIN.', 'show', 'success');
           switchAuthTab('login');
         }
       }
       toggleLoader(false);
     }
 
-    // ==================== NEW CUSTOM LOGIN LOGIC (MOBILE + PIN) ====================
-    async function handleMobileLogin(e) {
+    // ==================== LIVE EMAIL + 6-DIGIT PIN AUTHENTICATION LOGIN ====================
+    async function handleEmailPinLogin(e) {
       e.preventDefault();
       toggleLoader(true);
       showAlert('auth', '', 'hide');
 
-      const mobile = document.getElementById('loginMobile').value;
+      const email = document.getElementById('loginEmail').value;
       const pin = document.getElementById('loginPin').value;
 
-      const generatedEmail = `${mobile}@biketrack.com`;
-      const generatedPassword = `pin_${pin}_secure`;
-
       const { data, error } = await supabaseClient.auth.signInWithPassword({
-        email: generatedEmail,
-        password: generatedPassword
+        email: email,
+        password: `secure_pin_${pin}`
       });
 
       if (error) {
-        showAlert('auth', 'Login Failed: Mobile number ya PIN galat hai!');
+        showAlert('auth', 'Login Failed: Invalid Email address or 6-digit Security PIN!');
       } else if (data.session) {
         await loadUserProfileAndDashboard(data.session);
       }
@@ -295,7 +285,6 @@
     async function loadUserProfileAndDashboard(session) {
       currentUserSession = session;
       
-      // Fetch dynamic verification details from profiles table
       const { data: profile, error } = await supabaseClient
         .from('profiles')
         .select('*')
@@ -307,7 +296,6 @@
         document.getElementById('userDisplay').innerText = profile.user_name;
         document.getElementById('statusDisplay').innerText = profile.subscription_status;
         
-        // Style status badge dynamically
         if(profile.subscription_status === 'ACTIVE') {
           document.getElementById('statusDisplay').className = "badge bg-success";
         }
@@ -315,20 +303,19 @@
         showScreen('dashboard');
         await fetchCloudRecords();
       } else {
-        showAlert('auth', 'Profile metadata loading failure.');
+        showAlert('auth', 'Profile authorization mismatch configuration error.');
         showScreen('auth');
       }
     }
 
-    // ==================== LIVE DATA RETRIEVAL (COLLECTIONS FIXED) ====================
+    // ==================== REALTIME CLOUD COLLECTIONS LOG ====================
     async function fetchCloudRecords() {
       if(!currentUserSession) return;
       
-      // Fixed to singular "collections" as per image_5a8cc0.png top tab definition
       const { data, error } = await supabaseClient
         .from('collections')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('collected_at', { ascending: false });
 
       if (!error && data) {
         cachedRecords = data;
@@ -339,10 +326,10 @@
 
     async function handleCollectionSubmit(e) {
       e.preventDefault();
-      if(!currentUserSession || !activeProfileInfo) return alert("Session state missing.");
+      if(!currentUserSession || !activeProfileInfo) return alert("Authorization scope missing.");
 
       const mobile = document.getElementById('colCustMobile').value;
-      if(mobile.length !== 10) return alert("Customer mobile number must be 10 digits!");
+      if(mobile.length !== 10) return alert("Customer mobile number must be exactly 10 digits!");
 
       toggleLoader(true);
 
@@ -366,7 +353,7 @@
       const { error } = await supabaseClient.from('collections').insert([newEntry]);
 
       if (error) {
-        alert("Database Matrix Insert Error: " + error.message);
+        alert("Database Synchronization Error: " + error.message);
       } else {
         document.getElementById('collectionForm').reset();
         document.getElementById('colBalanceAmount').value = "0";
@@ -391,7 +378,7 @@
       tbody.innerHTML = "";
 
       if(recordsList.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="10" class="text-center text-muted py-4">No data metrics recorded yet in this workspace log.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" class="text-center text-muted py-4">No enterprise metrics captured yet.</td></tr>`;
         return;
       }
 
@@ -435,7 +422,7 @@
       
       const tableRows = [];
       const rows = document.querySelectorAll("#collectionTableBody tr");
-      if(rows[0] && rows[0].innerText.includes("No data")) return alert("No entries found to map into PDF!");
+      if(rows[0] && rows[0].innerText.includes("No data")) return alert("No ledger logs found to export!");
 
       rows.forEach(row => {
         const tdList = row.querySelectorAll("td");
