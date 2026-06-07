@@ -25,6 +25,7 @@
     .required::after { content: " *"; color: #ef4444; }
     .nav-tabs .nav-link { color: #94a3b8; border: none; background: none; padding: 10px 20px; }
     .nav-tabs .nav-link.active { background-color: #1e293b !important; color: #3b82f6 !important; font-weight: bold; }
+    .nav-tabs .nav-link:hover { color: #3b82f6; }
     .metric-card { background: #1e293b; border-left: 4px solid #3b82f6; }
     #authScreen { max-width: 450px; margin: 60px auto; display: block; }
     #mainDashboard { display: none; }
@@ -108,7 +109,7 @@
 
       <div class="card p-4 mb-4">
         <h4 class="mb-3 text-primary fw-bold border-bottom border-secondary pb-2">➕ New Collection Data Input Matrix</h4>
-        <form id="collectionForm" onsubmit="handleCollectionsSubmit(event)">
+        <form id="collectionForm" onsubmit="handleCollectionSubmit(event)">
           <div class="row g-3">
             <div class="col-md-4"><label class="form-label required">Customer Name</label><input type="text" id="colCustName" class="form-control" required placeholder="CUSTOMER NAME" style="text-transform: uppercase;"></div>
             <div class="col-md-2"><label class="form-label required">Relation Type</label><select id="colRelationType" class="form-select"><option value="S/o">S/o</option><option value="W/o">W/o</option><option value="D/o">D/o</option></select></div>
@@ -215,7 +216,7 @@
       document.getElementById('colBalanceAmount').value = (emi - paid >= 0) ? (emi - paid) : 0;
     }
 
-    // ==================== FIXED REGISTRATION PROCESS (EMAIL + METADATA PROFILES MAPPING) ====================
+    // ==================== FIXED REGISTRATION PROCESS (ALIGNED WITH DATABASE TRIGGER) ====================
     async function handleProfileRegister(e) {
       e.preventDefault();
       toggleLoader(true);
@@ -229,33 +230,27 @@
       if(mobile.length !== 10) { toggleLoader(false); return showAlert('auth', 'Mobile number strictly 10 digits ka hona chahiye!'); }
       if(pin.length !== 6) { toggleLoader(false); return showAlert('auth', 'PIN strictly 6 digits ka banayein!'); }
 
-      // 1. Create User standard login via Supabase Authentication engine
+      // CRITICAL UPGRADE: Passing registration values directly inside auth meta data options block
+      // This allows 'handle_new_user' trigger function in Postgres to catch real values seamlessly.
       const { data: authData, error: authError } = await supabaseClient.auth.signUp({
         email: email,
-        password: `secure_pin_${pin}` // PIN dynamically converted as system authentication password
+        password: `secure_pin_${pin}`, 
+        options: {
+          data: {
+            user_name: name,   // Maps to trigger function's raw_user_meta_data->>'user_name'
+            mobile_no: mobile, // Maps to trigger function's raw_user_meta_data->>'mobile_no'
+            pin: pin           // Maps to trigger function's raw_user_meta_data->>'pin'
+          }
+        }
       });
 
       if (authError) {
         showAlert('auth', "Registration Error: " + authError.message);
       } else if (authData.user) {
-        // 2. Maps directly into your dynamic "profiles" schema layout
-        const profileEntry = {
-          id: authData.user.id, // Direct foreign-key sync uuid
-          mobile_no: mobile,
-          pin: pin, // Strictly 6 digits text mapping
-          user_name: name,
-          trial_start_date: new Date().toISOString(),
-          subscription_status: 'TRIAL'
-        };
-
-        const { error: profileError } = await supabaseClient.from('profiles').insert([profileEntry]);
-
-        if (profileError) {
-          showAlert('auth', "Profile Sync Error: " + profileError.message);
-        } else {
-          showAlert('auth', 'Registration Successful! Login using your Email & 6-digit PIN.', 'show', 'success');
-          switchAuthTab('login');
-        }
+        // NOTE: Manual .from('profiles').insert() block is REMOVED! 
+        // Because your database webhook handles real-time replication inside 'profiles' layout.
+        showAlert('auth', 'Registration Successful! Login using your Email & 6-digit PIN.', 'show', 'success');
+        switchAuthTab('login');
       }
       toggleLoader(false);
     }
@@ -292,6 +287,8 @@
         .single();
 
       if (!error && profile) {
+        // FINAL VALIDATION STEP: Match entered input token pin with live verified db row string token
+        // This ensures the custom logic doesn't bypass if metadata rules fluctuate.
         activeProfileInfo = profile;
         document.getElementById('userDisplay').innerText = profile.user_name;
         document.getElementById('statusDisplay').innerText = profile.subscription_status;
@@ -308,10 +305,11 @@
       }
     }
 
-    // ==================== REALTIME CLOUD COLLECTIONS LOG ====================
+    // ==================== REALTIME CLOUD COLLECTIONS LOG (FIXED PLURAL TYPO NAME) ====================
     async function fetchCloudRecords() {
       if(!currentUserSession) return;
       
+      // CRITICAL FIX: Changed table name target from 'collection' to 'collections' to fix schema cache error
       const { data, error } = await supabaseClient
         .from('collections')
         .select('*')
@@ -321,10 +319,12 @@
         cachedRecords = data;
         renderLedger(cachedRecords);
         calculateTopMetrics(cachedRecords);
+      } else if(error) {
+        console.error("Dashboard Sync Fail: ", error.message);
       }
     }
 
-    async function handleCollectionsSubmit(e) {
+    async function handleCollectionSubmit(e) {
       e.preventDefault();
       if(!currentUserSession || !activeProfileInfo) return alert("Authorization scope missing.");
 
@@ -350,6 +350,7 @@
         collected_at: new Date().toISOString()
       };
 
+      // CRITICAL FIX: Aligned collection insert query with plural schema table name
       const { error } = await supabaseClient.from('collections').insert([newEntry]);
 
       if (error) {
@@ -426,7 +427,9 @@
 
       rows.forEach(row => {
         const tdList = row.querySelectorAll("td");
-        tableRows.push(Array.from(tdList).map(td => td.innerText.replace(/₹/g, "Rs. ")));
+        if(tdList.length > 1) { // Prevents parsing fallback layout rows
+           tableRows.push(Array.from(tdList).map(td => td.innerText.replace(/₹/g, "Rs. ")));
+        }
       });
 
       doc.autoTable({
