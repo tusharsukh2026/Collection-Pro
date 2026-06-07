@@ -626,21 +626,41 @@
       showAlert('auth', '', 'hide');
 
       const email = document.getElementById('forgotEmail').value;
+      const currentPageUrl = window.location.href.split('#')[0];
 
-      // IMPORTANT: redirectTo mein apni actual hosted page ka URL daalo
-      // Jab user email ka link click karega toh wapas isi page par aayega
-      // aur URL mein #access_token hoga jisse hum naya PIN set kar sakte hain
-      const currentPageUrl = window.location.href.split('#')[0]; // hash hata ke clean URL
+      // DEBUG: Console mein sab kuch print karo
+      console.log("=== FORGOT PIN DEBUG ===");
+      console.log("Email:", email);
+      console.log("Redirect URL:", currentPageUrl);
+      console.log("Supabase URL:", SUPABASE_URL);
 
-      const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
-        redirectTo: currentPageUrl  // Yahi page — reset token URL mein aayega
-      });
+      let result;
+      try {
+        result = await supabaseClient.auth.resetPasswordForEmail(email, {
+          redirectTo: currentPageUrl
+        });
+        // DEBUG: Poora Supabase response print karo
+        console.log("Supabase full response:", JSON.stringify(result));
+      } catch(catchErr) {
+        // Agar koi unexpected JS error aaye
+        console.error("Unexpected JS error:", catchErr);
+        showAlert('auth', 'Unexpected error: ' + catchErr.message);
+        toggleLoader(false);
+        return;
+      }
+
+      const { data, error } = result;
 
       if (error) {
-        showAlert('auth', 'Reset link bhejne mein error: ' + error.message);
+        // ERROR details poori tarah dikhao
+        console.error("Supabase error object:", error);
+        console.error("Error message:", error.message);
+        console.error("Error status:", error.status);
+        showAlert('auth', '❌ Error: ' + error.message + ' (Status: ' + (error.status || 'unknown') + ')');
       } else {
+        console.log("Success! data:", data);
         showAlert('auth',
-          '✅ Reset link bhej diya gaya! Apna email inbox check karein (spam folder bhi). Link par click karke naya PIN set karein.',
+          '✅ Reset link bhej diya gaya! Apna email inbox check karein (spam folder bhi).',
           'show', 'success'
         );
       }
