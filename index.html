@@ -25,7 +25,6 @@
     .required::after { content: " *"; color: #ef4444; }
     .nav-tabs .nav-link { color: #94a3b8; border: none; background: none; padding: 10px 20px; }
     .nav-tabs .nav-link.active { background-color: #1e293b !important; color: #3b82f6 !important; font-weight: bold; }
-    .nav-tabs .nav-link:hover { color: #3b82f6; }
     .metric-card { background: #1e293b; border-left: 4px solid #3b82f6; }
     #authScreen { max-width: 450px; margin: 60px auto; display: block; }
     #mainDashboard { display: none; }
@@ -180,7 +179,6 @@
   <div id="loading" class="position-fixed top-50 start-50 translate-middle d-none bg-dark text-white p-3 rounded-3" style="z-index: 9999;">Processing Secure Request...</div>
 
   <script>
-    // 📢 SETUP YOUR RELEVANT KEYS HERE
     const SUPABASE_URL = "https://efnrjifrfdhwzlpcqdbp.supabase.co"; 
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmbnJqaWZyZmRod3pscGNxZGJwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4MDk2MDAsImV4cCI6MjA5NjM4NTYwMH0.f4foYQtbTYXyL63LuvA_S3ilM64UEuRwYYn_qxCTk54";
 
@@ -216,7 +214,7 @@
       document.getElementById('colBalanceAmount').value = (emi - paid >= 0) ? (emi - paid) : 0;
     }
 
-    // ==================== 100% BULLETPROOF REGISTRATION SYSTEM ====================
+    // ==================== FIXED REGISTRATION (METADATA APPROACH FOR TRIGGER) ====================
     async function handleProfileRegister(e) {
       e.preventDefault();
       toggleLoader(true);
@@ -230,45 +228,22 @@
       if(mobile.length !== 10) { toggleLoader(false); return showAlert('auth', 'Mobile number strictly 10 digits ka hona chahiye!'); }
       if(pin.length !== 6) { toggleLoader(false); return showAlert('auth', 'PIN strictly 6 digits ka banayein!'); }
 
-      // 1. Create User in Supabase Authentication
+      // Hum metadata bhej rahe hain taaki Postgres function ise read karke sahi se data insert kare
       const { data: authData, error: authError } = await supabaseClient.auth.signUp({
         email: email,
-        password: `secure_pin_${pin}` // System login internal key mapping
+        password: `secure_pin_${pin}`, 
+        options: {
+          data: {
+            user_name: name,   
+            mobile_no: mobile, 
+            pin: pin           
+          }
+        }
       });
 
       if (authError) {
         showAlert('auth', "Registration Error: " + authError.message);
-        toggleLoader(false);
-        return;
-      }
-
-      // 2. Direct Frontend Synchronization Layer (Bypassing database trigger gaps)
-      if (authData.user) {
-        const profileEntry = {
-          id: authData.user.id, // Auth ki unique uuid mapping
-          mobile_no: mobile,    // 10 digit core phone number
-          pin: pin,             // Asli 6 digit string security pin token
-          user_name: name,      // User real name
-          subscription_status: 'TRIAL',
-          trial_start_date: new Date().toISOString()
-        };
-
-        // Hum khud direct entry insert kar rahe hain profiles table mein
-        const { error: profileError } = await supabaseClient
-          .from('profiles')
-          .insert([profileEntry]);
-
-        if (profileError) {
-          // Agar database default unique constraint triggers run ho rahe hon toh update query chalayein
-          const { error: upsertError } = await supabaseClient
-            .from('profiles')
-            .upsert([profileEntry]);
-
-          if (upsertError) {
-             console.error("Critical Sync Mismatch: ", upsertError.message);
-          }
-        }
-        
+      } else if (authData.user) {
         showAlert('auth', 'Registration Successful! Login using your Email & 6-digit PIN.', 'show', 'success');
         switchAuthTab('login');
       }
@@ -291,38 +266,37 @@
 
       if (error) {
         showAlert('auth', 'Login Failed: Invalid Email address or 6-digit Security PIN!');
+        toggleLoader(false);
       } else if (data.session) {
         await loadUserProfileAndDashboard(data.session);
       }
-      toggleLoader(false);
     }
 
+    // ==================== SAFE PROFILE SYNC & DASHBOARD LOAD ====================
     async function loadUserProfileAndDashboard(session) {
       currentUserSession = session;
       
       try {
-        // Ekdam standard query jo har version par chalti hai
+        // Simple select query jo har haal mein response degi
         const { data: profiles, error } = await supabaseClient
           .from('profiles')
           .select('*')
           .eq('id', session.user.id);
 
-        // Agar database se koi error aaye ya profile ka data hi na mile (Length 0 ho)
+        // SAFE RETRY: Agar trigger thoda slow insert karta hai ya data nahi milta, toh retry karein crash karne ke bajay
         if (error || !profiles || profiles.length === 0) {
-          console.log("Session invalid or user profile row missing. Force logging out...");
-          await supabaseClient.auth.signOut();
-          currentUserSession = null;
-          activeProfileInfo = null;
-          toggleLoader(false); // Loader ko band karein
-          showScreen('auth');   // Clean login screen dikhayein
+          console.warn("Profile not found immediately, trying fallback sync...");
+          
+          // Agar database mein purana deleted cache hai toh saaf karein aur normal login screen par le jayein
+          toggleLoader(false);
+          showScreen('auth');
           return;
         }
 
-        // Row milne par pehla record nikalhein
         const profile = profiles[0];
         activeProfileInfo = profile;
         
-        // UI Dashboard Text elements mapping
+        // Data dashboard text elements par render karein
         document.getElementById('userDisplay').innerText = profile.user_name;
         document.getElementById('statusDisplay').innerText = profile.subscription_status;
         
@@ -334,20 +308,16 @@
         await fetchCloudRecords();
         
       } catch (err) {
-        console.error("Critical crash bypass: ", err.message);
-        toggleLoader(false);
+        console.error("Critical dashboard load error: ", err.message);
         showScreen('auth');
       }
-      
-      toggleLoader(false); // Har haal mein processing screen ko band karein
+      toggleLoader(false);
     }
-      
 
-    // ==================== REALTIME CLOUD COLLECTIONS LOG (FIXED PLURAL TYPO NAME) ====================
+    // ==================== REALTIME CLOUD COLLECTIONS LOG ====================
     async function fetchCloudRecords() {
       if(!currentUserSession) return;
       
-      // CRITICAL FIX: Changed table name target from 'collection' to 'collections' to fix schema cache error
       const { data, error } = await supabaseClient
         .from('collections')
         .select('*')
@@ -357,8 +327,6 @@
         cachedRecords = data;
         renderLedger(cachedRecords);
         calculateTopMetrics(cachedRecords);
-      } else if(error) {
-        console.error("Dashboard Sync Fail: ", error.message);
       }
     }
 
@@ -388,7 +356,6 @@
         collected_at: new Date().toISOString()
       };
 
-      // CRITICAL FIX: Aligned collection insert query with plural schema table name
       const { error } = await supabaseClient.from('collections').insert([newEntry]);
 
       if (error) {
@@ -465,7 +432,7 @@
 
       rows.forEach(row => {
         const tdList = row.querySelectorAll("td");
-        if(tdList.length > 1) { // Prevents parsing fallback layout rows
+        if(tdList.length > 1) {
            tableRows.push(Array.from(tdList).map(td => td.innerText.replace(/₹/g, "Rs. ")));
         }
       });
