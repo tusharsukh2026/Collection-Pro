@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BikeTrack Pro - SAAS Collection Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
+  <style>
+    body { background-color: #0f172a; color: #f8fafc; font-family: sans-serif; }
+    .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; color: #f8fafc; }
+    .btn-primary { background-color: #3b82f6; border: none; }
+    .btn-primary:hover { background-color: #2563eb; }
+    .btn-success { background-color: #10b981; border: none; }
+    .btn-success:hover { background-color: #059669; }
+    .header-panel { background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%); color: white; border-bottom: 2px solid #3b82f6; padding: 25px 15px; }
+    .form-control, .form-select { background-color: #0f172a; border: 1px solid #475569; color: #f8fafc; }
+    .form-control:focus, .form-select:focus { background-color: #0f172a; border-color: #3b82f6; color: #f8fafc; box-shadow: none; }
+    .required::after { content: " *"; color: #ef4444; }
+    .nav-tabs .nav-link { color: #94a3b8; border: none; background: none; padding: 10px 20px; }
+    .nav-tabs .nav-link.active { background-color: #1e293b !important; color: #3b82f6 !important; font-weight: bold; }
+    .metric-card { background: #1e293b; border-left: 4px solid #3b82f6; transition: transform 0.2s; }
+    #authScreen { max-width: 450px; margin: 60px auto; display: block; }
+    #mainDashboard { display: none; }
+  </style>
+</head>
+<body>
+
+  <div id="authScreen" class="container card p-4">
+    <h3 class="text-center mb-4 text-primary fw-bold">BIKETRACK PRO SAAS</h3>
+    
+    <ul class="nav nav-tabs mb-4 justify-content-center" id="authTabs">
+      <li class="nav-item"><button type="button" id="tab-login" class="nav-link active" onclick="switchAuthTab('login')">Login</button></li>
+      <li class="nav-item"><button type="button" id="tab-register" class="nav-link" onclick="switchAuthTab('register')">Register</button></li>
+    </ul>
+
+    <div id="authAlert" class="alert alert-danger d-none"></div>
+
+    <form id="loginForm" onsubmit="handleLogin(event)">
+      <div class="mb-3"><label class="form-label required">Email Address</label><input type="email" id="loginEmail" class="form-control" required placeholder="name@company.com"></div>
+      <div class="mb-3"><label class="form-label required">Password</label><input type="password" id="loginPassword" class="form-control" required placeholder="••••••••"></div>
+      <button type="submit" class="btn btn-primary w-100 py-2 fw-bold">Secure Sign In</button>
+    </form>
+
+    <form id="registerForm" style="display: none;" onsubmit="handleRegister(event)">
+      <div class="mb-3"><label class="form-label required">Business / Owner Name</label><input type="text" id="regName" class="form-control" required placeholder="John Doe"></div>
+      <div class="mb-3"><label class="form-label required">Email Address</label><input type="email" id="regEmail" class="form-control" required placeholder="name@company.com"></div>
+      <div class="mb-3"><label class="form-label required">Create Password</label><input type="password" id="regPassword" class="form-control" required placeholder="Min 6 characters"></div>
+      <button type="submit" class="btn btn-success w-100 py-2 fw-bold">Create Secure SAAS Account</button>
+    </form>
+  </div>
+
+  <div id="mainDashboard" class="container-fluid p-0">
+    <div class="header-panel d-flex justify-content-between align-items-center px-4">
+      <div>
+        <h2 class="fw-bold mb-0 text-white">BIKETRACK PRO SYSTEM</h2>
+        <p class="mb-0 text-info">Active User: <span id="userDisplay" class="fw-bold text-warning">Loading...</span></p>
+      </div>
+      <button onclick="logoutUser()" class="btn btn-outline-danger btn-sm fw-bold px-3">Sign Out</button>
+    </div>
+
+    <div class="container my-4">
+      <div class="row g-3 mb-4">
+        <div class="col-md-4">
+          <div class="card metric-card p-3 border-start border-primary">
+            <div class="text-muted small text-uppercase fw-bold">Total Paid Collection</div>
+            <div class="h3 mb-0 fw-bold text-primary" id="metricToday">₹0.00</div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card metric-card p-3 border-start border-success">
+            <div class="text-muted small text-uppercase fw-bold">Total Collection Entries</div>
+            <div class="h3 mb-0 fw-bold text-success" id="metricCount">0 Records</div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card metric-card p-3 border-start border-warning">
+            <div class="text-muted small text-uppercase fw-bold">Total Remaining Balance</div>
+            <div class="h3 mb-0 fw-bold text-warning" id="metricPending">₹0.00</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card p-4 mb-4">
+        <h4 class="mb-3 text-primary fw-bold border-bottom border-secondary pb-2">➕ New Collection Data Input Matrix</h4>
+        <form id="collectionForm" onsubmit="handleCollectionSubmit(event)">
+          <div class="row g-3">
+            <div class="col-md-4"><label class="form-label required">Customer Name</label><input type="text" id="colCustName" class="form-control" required placeholder="CUSTOMER NAME" style="text-transform: uppercase;"></div>
+            <div class="col-md-2"><label class="form-label required">Relation Type</label><select id="colRelationType" class="form-select"><option value="S/o">S/o</option><option value="W/o">W/o</option><option value="D/o">D/o</option></select></div>
+            <div class="col-md-3"><label class="form-label required">Relation Name</label><input type="text" id="colRelationName" class="form-control" required placeholder="FATHER/HUSBAND NAME" style="text-transform: uppercase;"></div>
+            <div class="col-md-3"><label class="form-label required">Customer Mobile No</label><input type="number" id="colCustMobile" class="form-control" oninput="if(this.value.length > 10) this.value = this.value.slice(0,10);" required placeholder="10 Digit Mobile"></div>
+            
+            <div class="col-md-3"><label class="form-label required">EMI Amount (₹)</label><input type="number" id="colEmiAmount" class="form-control" required placeholder="0" min="0" oninput="calculateBalance()"></div>
+            <div class="col-md-3"><label class="form-label required">Amount Paid (₹)</label><input type="number" id="colAmountPaid" class="form-control" required placeholder="0" min="0" oninput="calculateBalance()"></div>
+            <div class="col-md-3"><label class="form-label">Balance Amount (₹)</label><input type="number" id="colBalanceAmount" class="form-control bg-dark text-warning fw-bold" readonly value="0"></div>
+            <div class="col-md-3"><label class="form-label required">Payment Mode</label><select id="colMode" class="form-select"><option value="Cash">Cash</option><option value="UPI">UPI</option></select></div>
+            
+            <div class="col-md-4"><label class="form-label required">Receipt Type</label><select id="colReceiptType" class="form-select"><option value="Advance">Advance</option><option value="Current Month">Current Month</option><option value="Overdue">Overdue</option><option value="Funding">Funding</option><option value="Penalty">Penalty</option><option value="Others">Others</option></select></div>
+            <div class="col-md-8"><label class="form-label">Remark</label><input type="text" id="colRemark" class="form-control" placeholder="Optional collection remarks"></div>
+            
+            <div class="col-md-12 d-flex justify-content-end mt-4"><button type="submit" id="btnSubmitForm" class="btn btn-success px-5 py-2 fw-bold">💾 Save to Cloud Database</button></div>
+          </div>
+        </form>
+      </div>
+
+      <div class="card p-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-center border-bottom border-secondary pb-3 mb-3">
+          <h4 class="text-info fw-bold m-0">📋 Real-Time Collection Ledger Log</h4>
+          
+          <div class="d-flex gap-2 mt-2 mt-md-0">
+            <input type="date" id="filterDate" class="form-control form-control-sm" onchange="filterLedgerRecords()">
+            <select id="filterMonth" class="form-select form-select-sm" onchange="filterLedgerRecords()">
+              <option value="">-- All Months --</option>
+              <option value="01">January</option><option value="02">February</option><option value="03">March</option>
+              <option value="04">April</option><option value="05">May</option><option value="06">June</option>
+              <option value="07">July</option><option value="08">August</option><option value="09">September</option>
+              <option value="10">October</option><option value="11">November</option><option value="12">December</option>
+            </select>
+            <select id="filterReceiptType" class="form-select form-select-sm" onchange="filterLedgerRecords()">
+              <option value="">-- All Receipts --</option>
+              <option value="Advance">Advance</option><option value="Current Month">Current Month</option>
+              <option value="Overdue">Overdue</option><option value="Funding">Funding</option>
+              <option value="Penalty">Penalty</option><option value="Others">Others</option>
+            </select>
+            <button onclick="exportToPDF()" class="btn btn-danger btn-sm fw-bold px-3">📥 Export PDF</button>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-dark table-hover border border-secondary mb-0" id="ledgerTable">
+            <thead>
+              <tr>
+                <th>Collected At</th>
+                <th>Customer Name</th>
+                <th>Relation</th>
+                <th>Mobile</th>
+                <th>EMI (₹)</th>
+                <th>Paid (₹)</th>
+                <th>Balance (₹)</th>
+                <th>Mode</th>
+                <th>Receipt Type</th>
+                <th>Remark</th>
+              </tr>
+            </thead>
+            <tbody id="collectionTableBody">
+              <tr><td colspan="10" class="text-center text-muted py-4">Loading real-time authenticated cloud data...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="loading" class="position-fixed top-50 start-50 translate-middle d-none bg-dark text-white p-3 rounded-3" style="z-index: 9999;">Syncing with Supabase Secure Server...</div>
+
+  <script>
+    // 📢 STEP 1: APNI REAL KEYS CORRESPONDING ENTER KAREIN
+    const SUPABASE_URL = "https://efnrjifrfdhwzlpcqdbp.supabase.co"; 
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmbnJqaWZyZmRod3pscGNxZGJwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4MDk2MDAsImV4cCI6MjA5NjM4NTYwMH0.f4foYQtbTYXyL63LuvA_S3ilM64UEuRwYYn_qxCTk54
+";
+
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    
+    let cachedRecords = []; 
+    let currentUserSession = null;
+
+    // Check existing login session on page load
+    window.onload = async function() {
+      toggleLoader(true);
+      const { data: { session }, error } = await supabaseClient.auth.getSession();
+      if (session) {
+        setupDashboardSession(session);
+      } else {
+        showScreen('auth');
+      }
+      toggleLoader(false);
+    };
+
+    function toggleLoader(show) {
+      document.getElementById('loading').classList.toggle('d-none', !show);
+    }
+
+    function showScreen(screenType) {
+      document.getElementById('authScreen').style.display = screenType === 'auth' ? 'block' : 'none';
+      document.getElementById('mainDashboard').style.display = screenType === 'dashboard' ? 'block' : 'none';
+    }
+
+    function calculateBalance() {
+      const emi = parseFloat(document.getElementById('colEmiAmount').value) || 0;
+      const paid = parseFloat(document.getElementById('colAmountPaid').value) || 0;
+      document.getElementById('colBalanceAmount').value = (emi - paid >= 0) ? (emi - paid) : 0;
+    }
+
+    // ==================== 100% SECURE AUTHENTICATION MATRIX ====================
+    async function handleRegister(e) {
+      e.preventDefault();
+      toggleLoader(true);
+      showAlert('auth', '', 'hide');
+
+      const name = document.getElementById('regName').value;
+      const email = document.getElementById('regEmail').value;
+      const password = document.getElementById('regPassword').value;
+
+      const { data, error } = await supabaseClient.auth.signUp({
+        email: email,
+        password: password,
+        options: { data: { display_name: name } }
+      });
+
+      if (error) {
+        showAlert('auth', error.message);
+      } else {
+        showAlert('auth', 'Registration Successful! Please check email or login.', 'show', 'success');
+        switchAuthTab('login');
+      }
+      toggleLoader(false);
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      toggleLoader(true);
+      showAlert('auth', '', 'hide');
+
+      const email = document.getElementById('loginEmail').value;
+      const password = document.getElementById('loginPassword').value;
+
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ email: email, password: password });
+      
+      if (error) {
+        showAlert('auth', 'Login Failed: ' + error.message);
+      } else if (data.session) {
+        setupDashboardSession(data.session);
+      }
+      toggleLoader(false);
+    }
+
+    async function setupDashboardSession(session) {
+      currentUserSession = session;
+      const userMetadata = session.user.user_metadata;
+      document.getElementById('userDisplay').innerText = userMetadata.display_name || session.user.email;
+      showScreen('dashboard');
+      await fetchCloudRecords();
+    }
+
+    // ==================== REAL DATABASE READ/WRITE LOGIC ====================
+    async function fetchCloudRecords() {
+      if(!currentUserSession) return;
+      
+      // Automatic RLS mapping triggers via authenticated select
+      const { data, error } = await supabaseClient
+        .from('collection')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        cachedRecords = data;
+        renderLedger(cachedRecords);
+        calculateTopMetrics(cachedRecords);
+      }
+    }
+
+    async function handleCollectionSubmit(e) {
+      e.preventDefault();
+      if(!currentUserSession) return alert("Session expired. Please login again.");
+
+      const mobile = document.getElementById('colCustMobile').value;
+      if(mobile.length !== 10) return alert("Mobile number strictly 10 digits ka hona chahiye!");
+
+      toggleLoader(true);
+
+      // Exact table schema mapping injection
+      const newEntry = {
+        user_id: currentUserSession.user.id, // Securely track user ownership
+        customer_name: document.getElementById('colCustName').value.toUpperCase(),
+        relation_type: document.getElementById('colRelationType').value,
+        relation_name: document.getElementById('colRelationName').value.toUpperCase(),
+        cust_mobile: mobile,
+        emi_amount: parseFloat(document.getElementById('colEmiAmount').value) || 0,
+        amount_paid: parseFloat(document.getElementById('colAmountPaid').value) || 0,
+        balance_amount: parseFloat(document.getElementById('colBalanceAmount').value) || 0,
+        mode: document.getElementById('colMode').value,
+        receipt_type: document.getElementById('colReceiptType').value,
+        remark: document.getElementById('colRemark').value || "-",
+        entered_by: currentUserSession.user.user_metadata.display_name || currentUserSession.user.email,
+        funding_status: document.getElementById('colReceiptType').value === 'Funding' ? 'Active' : 'N/A',
+        collected_at: new Date().toISOString()
+      };
+
+      const { error } = await supabaseClient.from('collection').insert([newEntry]);
+
+      if (error) {
+        alert("Database Error: " + error.message);
+      } else {
+        document.getElementById('collectionForm').reset();
+        document.getElementById('colBalanceAmount').value = "0";
+        await fetchCloudRecords(); // Live refresh from server
+      }
+      toggleLoader(false);
+    }
+
+    function calculateTopMetrics(records) {
+      let totalPaid = 0, totalBalance = 0;
+      records.forEach(r => {
+        totalPaid += Number(r.amount_paid) || 0;
+        totalBalance += Number(r.balance_amount) || 0;
+      });
+      document.getElementById('metricToday').innerText = "₹" + totalPaid.toFixed(2);
+      document.getElementById('metricCount').innerText = records.length + " Records";
+      document.getElementById('metricPending').innerText = "₹" + totalBalance.toFixed(2);
+    }
+
+    function renderLedger(recordsList) {
+      const tbody = document.getElementById('collectionTableBody');
+      tbody.innerHTML = "";
+
+      if(recordsList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="10" class="text-center text-muted py-4">No collection records found in your database workspace.</td></tr>`;
+        return;
+      }
+
+      recordsList.forEach(r => {
+        const dateString = new Date(r.collected_at).toLocaleString();
+        tbody.innerHTML += `<tr>
+          <td>${dateString}</td>
+          <td class="text-warning fw-bold">${r.customer_name}</td>
+          <td><small>${r.relation_type} ${r.relation_name}</small></td>
+          <td>${r.cust_mobile}</td>
+          <td>₹${Number(r.emi_amount).toFixed(2)}</td>
+          <td class="text-success fw-bold">₹${Number(r.amount_paid).toFixed(2)}</td>
+          <td class="text-danger fw-bold">₹${Number(r.balance_amount).toFixed(2)}</td>
+          <td><span class="badge bg-secondary">${r.mode}</span></td>
+          <td><span class="badge ${r.receipt_type === 'Funding' ? 'bg-primary' : 'bg-info text-dark'}">${r.receipt_type}</span></td>
+          <td class="small text-muted">${r.remark}</td>
+        </tr>`;
+      });
+    }
+
+    function filterLedgerRecords() {
+      const targetDate = document.getElementById('filterDate').value;
+      const targetMonth = document.getElementById('filterMonth').value;
+      const targetType = document.getElementById('filterReceiptType').value;
+
+      let filtered = cachedRecords;
+
+      if(targetDate) filtered = filtered.filter(r => r.collected_at.startsWith(targetDate));
+      if(targetMonth) filtered = filtered.filter(r => r.collected_at.substring(5, 7) === targetMonth);
+      if(targetType) filtered = filtered.filter(r => r.receipt_type === targetType);
+
+      renderLedger(filtered);
+      calculateTopMetrics(filtered);
+    }
+
+    function exportToPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF('l', 'mm', 'a4'); 
+      doc.setFont("sans-serif", "bold");
+      doc.text("BIKETRACK PRO - COLLECTION LEDGER REPORT", 14, 15);
+      
+      const tableRows = [];
+      const rows = document.querySelectorAll("#collectionTableBody tr");
+      if(rows[0] && rows[0].innerText.includes("No collection")) return alert("No data to export!");
+
+      rows.forEach(row => {
+        const tdList = row.querySelectorAll("td");
+        tableRows.push(Array.from(tdList).map(td => td.innerText.replace(/₹/g, "Rs. ")));
+      });
+
+      doc.autoTable({
+        head: [['Collected At', 'Customer Name', 'Relation', 'Mobile', 'EMI', 'Paid', 'Balance', 'Mode', 'Receipt Type', 'Remark']],
+        body: tableRows,
+        startY: 25,
+        theme: 'grid',
+        styles: { fontSize: 8 }
+      });
+      doc.save(`Report_${new Date().toISOString().slice(0,10)}.pdf`);
+    }
+
+    async function logoutUser() {
+      await supabaseClient.auth.signOut();
+      currentUserSession = null;
+      showScreen('auth');
+    }
+
+    function switchAuthTab(tab) {
+      document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none';
+      document.getElementById('registerForm').style.display = tab === 'register' ? 'block' : 'none';
+      document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+      document.getElementById('tab-register').classList.toggle('active', tab === 'register');
+    }
+
+    function showAlert(type, message, action='show', state='danger') {
+      const alertBox = document.getElementById(type + 'Alert');
+      if (action === 'hide') return alertBox.classList.add('d-none');
+      alertBox.className = `alert alert-${state}`; alertBox.innerText = message; alertBox.classList.remove('d-none');
+    }
+  </script>
+</body>
+</html>
