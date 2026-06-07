@@ -38,6 +38,8 @@
     <ul class="nav nav-tabs mb-4 justify-content-center" id="authTabs">
       <li class="nav-item"><button type="button" id="tab-login" class="nav-link active" onclick="switchAuthTab('login')">PIN Login</button></li>
       <li class="nav-item"><button type="button" id="tab-register" class="nav-link" onclick="switchAuthTab('register')">New Register</button></li>
+      <!-- NEW TAB: Forgot PIN link tab -->
+      <li class="nav-item"><button type="button" id="tab-forgot" class="nav-link" onclick="switchAuthTab('forgot')">Forgot PIN</button></li>
     </ul>
 
     <div id="authAlert" class="alert alert-danger d-none"></div>
@@ -72,6 +74,40 @@
         <input type="password" id="regPin" class="form-control" oninput="if(this.value.length > 6) this.value = this.value.slice(0,6);" required placeholder="e.g. 123456">
       </div>
       <button type="submit" class="btn btn-success w-100 py-2 fw-bold">Register Profile & Start Trial</button>
+    </form>
+
+    <!-- ================================================================
+         NEW FORM #1: FORGOT PIN — User apna email daalta hai,
+         Supabase reset link email par bhejta hai.
+         redirectTo wahi page hona chahiye jahan "Set New PIN" form hai.
+    ================================================================ -->
+    <form id="forgotForm" style="display: none;" onsubmit="handleForgotPin(event)">
+      <p class="text-muted small mb-3">Apna registered Email daalo. Aapko ek secure Reset Link milega jisme aap naya 6-digit PIN set kar sakte hain.</p>
+      <div class="mb-3">
+        <label class="form-label required">Registered Email Address</label>
+        <input type="email" id="forgotEmail" class="form-control" required placeholder="name@company.com">
+      </div>
+      <button type="submit" class="btn btn-warning w-100 py-2 fw-bold text-dark">📧 Send PIN Reset Link</button>
+      <p class="text-muted small mt-2 text-center">Reset link aapke email inbox mein aayega (spam bhi check karein).</p>
+    </form>
+
+    <!-- ================================================================
+         NEW FORM #2: SET NEW PIN — Yeh form tab dikhega jab user
+         email ka reset link click karke wapas page par aayega.
+         URL mein Supabase ka #access_token automatically aata hai
+         jisse hum naya PIN (password) set kar sakte hain.
+    ================================================================ -->
+    <form id="resetPinForm" style="display: none;" onsubmit="handleSetNewPin(event)">
+      <p class="text-success small mb-3 fw-bold">✅ Reset link verified! Ab apna naya 6-digit Secure PIN set karein.</p>
+      <div class="mb-3">
+        <label class="form-label required">New 6-Digit Secure PIN</label>
+        <input type="password" id="newPin" class="form-control" oninput="if(this.value.length > 6) this.value = this.value.slice(0,6);" required placeholder="New PIN (6 digits)">
+      </div>
+      <div class="mb-3">
+        <label class="form-label required">Confirm New PIN</label>
+        <input type="password" id="confirmPin" class="form-control" oninput="if(this.value.length > 6) this.value = this.value.slice(0,6);" required placeholder="Confirm PIN">
+      </div>
+      <button type="submit" class="btn btn-success w-100 py-2 fw-bold">🔐 Save New PIN & Login</button>
     </form>
   </div>
 
@@ -565,9 +601,151 @@
     function switchAuthTab(tab) {
       document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none';
       document.getElementById('registerForm').style.display = tab === 'register' ? 'block' : 'none';
+      // NEW: forgot aur resetPinForm bhi toggle karein
+      document.getElementById('forgotForm').style.display = tab === 'forgot' ? 'block' : 'none';
+      document.getElementById('resetPinForm').style.display = tab === 'reset' ? 'block' : 'none';
       document.getElementById('tab-login').classList.toggle('active', tab === 'login');
       document.getElementById('tab-register').classList.toggle('active', tab === 'register');
+      // NEW: forgot tab highlight
+      document.getElementById('tab-forgot').classList.toggle('active', tab === 'forgot');
     }
+
+    // ================================================================
+    // NEW FUNCTION: handleForgotPin
+    // ---------------------------------------------------------------
+    // User apna email submit karta hai.
+    // Supabase us email par ek secure reset link bhejta hai.
+    // "redirectTo" mein aapki site ka URL daalna zaroori hai —
+    // Supabase wahi URL par #access_token append karke redirect karega.
+    // Supabase Dashboard > Authentication > URL Configuration mein
+    // yeh URL "Redirect URLs" mein whitelist hona chahiye.
+    // ================================================================
+    async function handleForgotPin(e) {
+      e.preventDefault();
+      toggleLoader(true);
+      showAlert('auth', '', 'hide');
+
+      const email = document.getElementById('forgotEmail').value;
+
+      // IMPORTANT: redirectTo mein apni actual hosted page ka URL daalo
+      // Jab user email ka link click karega toh wapas isi page par aayega
+      // aur URL mein #access_token hoga jisse hum naya PIN set kar sakte hain
+      const currentPageUrl = window.location.href.split('#')[0]; // hash hata ke clean URL
+
+      const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+        redirectTo: currentPageUrl  // Yahi page — reset token URL mein aayega
+      });
+
+      if (error) {
+        showAlert('auth', 'Reset link bhejne mein error: ' + error.message);
+      } else {
+        showAlert('auth',
+          '✅ Reset link bhej diya gaya! Apna email inbox check karein (spam folder bhi). Link par click karke naya PIN set karein.',
+          'show', 'success'
+        );
+      }
+      toggleLoader(false);
+    }
+
+    // ================================================================
+    // NEW FUNCTION: handleSetNewPin
+    // ---------------------------------------------------------------
+    // User email ka reset link click karta hai → page reload hota hai
+    // URL mein #access_token aata hai → hum detect karte hain →
+    // "Set New PIN" form dikhate hain → User naya PIN daalta hai →
+    // Supabase ka updateUser() function se password update hota hai.
+    // ================================================================
+    async function handleSetNewPin(e) {
+      e.preventDefault();
+      toggleLoader(true);
+      showAlert('auth', '', 'hide');
+
+      const newPin = document.getElementById('newPin').value;
+      const confirmPin = document.getElementById('confirmPin').value;
+
+      // Validation: dono PIN match karein
+      if (newPin !== confirmPin) {
+        showAlert('auth', 'Dono PIN match nahi kar rahe! Dobara check karein.');
+        toggleLoader(false);
+        return;
+      }
+
+      if (newPin.length !== 6) {
+        showAlert('auth', 'PIN exactly 6 digits ka hona chahiye!');
+        toggleLoader(false);
+        return;
+      }
+
+      // Supabase ka updateUser — session already set hai reset token se
+      const { error } = await supabaseClient.auth.updateUser({
+        password: `secure_pin_${newPin}`  // Wahi format jo login mein use hota hai
+      });
+
+      if (error) {
+        showAlert('auth', 'PIN update karne mein error: ' + error.message);
+      } else {
+        // PIN update successful — profiles table mein bhi update karo (optional sync)
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session) {
+          await supabaseClient
+            .from('profiles')
+            .update({ pin: newPin })
+            .eq('id', session.user.id);
+        }
+
+        showAlert('auth',
+          '🎉 Naya PIN successfully set ho gaya! Ab apne Email aur naye PIN se login karein.',
+          'show', 'success'
+        );
+        // URL se hash saaf karo aur login tab par wapas lo
+        window.history.replaceState(null, '', window.location.pathname);
+        setTimeout(() => switchAuthTab('login'), 2000);
+      }
+      toggleLoader(false);
+    }
+
+    // ================================================================
+    // NEW: PAGE LOAD PAR RESET TOKEN DETECT KARNA
+    // ---------------------------------------------------------------
+    // Jab user email mein reset link click karta hai, Supabase
+    // URL mein #access_token=...&type=recovery append karta hai.
+    // Hum page load par yeh check karte hain — agar mila toh
+    // seedha "Set New PIN" form dikhate hain.
+    // Yeh check window.onload ke ANDAR add kiya gaya hai.
+    // ================================================================
+    const _originalOnload = window.onload;
+    window.onload = async function() {
+      // Pehle check karo ki URL mein reset token hai ya nahi
+      const hashParams = new URLSearchParams(window.location.hash.replace('#', '?').slice(1));
+      const accessToken = hashParams.get('access_token');
+      const tokenType = hashParams.get('type');
+
+      if (accessToken && tokenType === 'recovery') {
+        // Reset token mila — Supabase session set karo
+        const { error } = await supabaseClient.auth.setSession({
+          access_token: accessToken,
+          refresh_token: hashParams.get('refresh_token') || ''
+        });
+
+        if (!error) {
+          // Auth screen dikhao aur seedha reset PIN form par le jao
+          showScreen('auth');
+          switchAuthTab('reset');
+          showAlert('auth', '🔐 Reset link verified! Naya 6-digit PIN set karein.', 'show', 'success');
+          return; // Baaki onload logic mat chalao
+        }
+      }
+
+      // Normal flow — pehle wala onload logic
+      toggleLoader(true);
+      const { data: { session }, error } = await supabaseClient.auth.getSession();
+      if (session) {
+        await loadUserProfileAndDashboard(session);
+      } else {
+        showScreen('auth');
+      }
+      toggleLoader(false);
+    };
 
     function showAlert(type, message, action='show', state='danger') {
       const alertBox = document.getElementById(type + 'Alert');
