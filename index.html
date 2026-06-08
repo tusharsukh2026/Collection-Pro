@@ -1447,16 +1447,25 @@
       const pin = document.getElementById('m-loginPin').value.trim();
       if (!email || pin.length !== 6) return showModalAlert('Email aur 6-digit PIN zaroori hai.', 'error');
 
-      showModalAlert('Logging in...', 'success');
+      showModalAlert('🔐 Verifying...', 'success');
       const { data, error } = await sb.auth.signInWithPassword({
         email, password: `secure_pin_${pin}`
       });
 
       if (error) {
         showModalAlert('Login failed: Invalid email ya PIN!', 'error');
-      } else {
-        showModalAlert('✅ Login successful! Redirecting...', 'success');
-        setTimeout(() => { window.location.href = APP_URL; }, 1000);
+      } else if (data.session) {
+        // ── SMOOTH REDIRECT FIX ──────────────────────────────────
+        // setTimeout HATAYA — koi extra wait nahi
+        // Session tokens URL params mein bhejte hain taaki app.html
+        // ko dobara Supabase server call NA karni pade
+        // app.html URL se token padh ke locally setSession() karta hai
+        // → double processing band → smooth instant redirect
+        // ─────────────────────────────────────────────────────────
+        showModalAlert('✅ Loading dashboard...', 'success');
+        const t  = encodeURIComponent(data.session.access_token);
+        const r  = encodeURIComponent(data.session.refresh_token);
+        window.location.href = APP_URL + '?token=' + t + '&refresh=' + r;
       }
     }
 
