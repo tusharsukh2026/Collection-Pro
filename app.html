@@ -376,33 +376,6 @@
     // ============================================================
     window.onload = async function() {
       // Pehle URL mein reset token check karo (Forgot PIN flow)
-      // ================================================================
-      // FIX: Landing page se token URL params mein aata hai
-      // -- Agar ?token= param hai toh seedha session set karo
-      // -- Iska matlab user landing page se already login kar chuka hai
-      // -- Koi dobara session fetch nahi hogi → page atakta nahi
-      // ================================================================
-      const urlParams = new URLSearchParams(window.location.search);
-      const urlToken = urlParams.get('token');
-      const urlRefresh = urlParams.get('refresh');
-
-      if (urlToken && urlRefresh) {
-        // URL se token mila — session turant set karo
-        toggleLoader(true);
-        const { data: tokenData, error: tokenError } = await supabaseClient.auth.setSession({
-          access_token: decodeURIComponent(urlToken),
-          refresh_token: decodeURIComponent(urlRefresh)
-        });
-        if (!tokenError && tokenData.session) {
-          // URL clean karo (token remove karo history se)
-          window.history.replaceState(null, '', window.location.pathname);
-          await loadUserProfileAndDashboard(tokenData.session);
-          return; // Done — no further checks needed
-        }
-        toggleLoader(false);
-      }
-
-      // Password reset link check (email se aata hai, hash mein)
       const hashParams = new URLSearchParams(window.location.hash.replace('#', '?').slice(1));
       const accessToken = hashParams.get('access_token');
       const tokenType = hashParams.get('type');
@@ -420,7 +393,7 @@
         }
       }
 
-      // Normal flow — existing session check
+      // Normal login session check
       toggleLoader(true);
       const { data: { session } } = await supabaseClient.auth.getSession();
       if (session) {
