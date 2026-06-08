@@ -1,1034 +1,1630 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Vasoolify - Secure Collection Dashboard</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
-
+  <title>Vasoolify — Smart Collection Management</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
   <style>
-    body { background-color: #0f172a; color: #f8fafc; font-family: sans-serif; }
-    .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; color: #f8fafc; }
-    .btn-primary { background-color: #3b82f6; border: none; }
-    .btn-primary:hover { background-color: #2563eb; }
-    .btn-success { background-color: #10b981; border: none; }
-    .btn-success:hover { background-color: #059669; }
-    .header-panel { background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%); color: white; border-bottom: 2px solid #3b82f6; padding: 25px 15px; }
-    .form-control, .form-select { background-color: #0f172a; border: 1px solid #475569; color: #f8fafc; }
-    .form-control:focus, .form-select:focus { background-color: #0f172a; border-color: #3b82f6; color: #f8fafc; box-shadow: none; }
-    .required::after { content: " *"; color: #ef4444; }
-    .nav-tabs .nav-link { color: #94a3b8; border: none; background: none; padding: 10px 20px; }
-    .nav-tabs .nav-link.active { background-color: #1e293b !important; color: #3b82f6 !important; font-weight: bold; }
-    .metric-card { background: #1e293b; border-left: 4px solid #3b82f6; }
-    #authScreen { max-width: 450px; margin: 60px auto; display: block; }
-    #mainDashboard { display: none; }
+    :root {
+      --ink: #0a0f1e;
+      --ink2: #111827;
+      --surface: #151c2e;
+      --surface2: #1e293b;
+      --border: rgba(255,255,255,0.07);
+      --blue: #3b82f6;
+      --blue2: #60a5fa;
+      --cyan: #22d3ee;
+      --green: #10b981;
+      --gold: #f59e0b;
+      --text: #f1f5f9;
+      --muted: #64748b;
+      --muted2: #94a3b8;
+    }
 
-    /* ============================================================
-       NEW: TRIAL EXPIRED OVERLAY STYLES
-       -- Poore dashboard ko blur karke payment screen dikhata hai
-       -- User kuch bhi use nahi kar sakta jab tak payment nahi karta
-    ============================================================ */
-    #trialExpiredOverlay {
-      display: none; /* JS se show hoga jab trial khatam ho */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--ink);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      overflow-x: hidden;
+      cursor: default;
+    }
+
+    /* ── NOISE TEXTURE OVERLAY ── */
+    body::before {
+      content: '';
       position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(15, 23, 42, 0.97);
-      z-index: 99999;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.4;
+    }
+
+    h1, h2, h3, h4 { font-family: 'Syne', sans-serif; }
+
+    /* ══════════════════════════════
+       NAVBAR
+    ══════════════════════════════ */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 1000;
+      padding: 18px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(10, 15, 30, 0.75);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-logo {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 22px;
+      background: linear-gradient(135deg, var(--blue2), var(--cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.5px;
+    }
+
+    .nav-logo span {
+      background: linear-gradient(135deg, var(--cyan), var(--green));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .nav-links { display: flex; gap: 32px; align-items: center; }
+    .nav-links a {
+      color: var(--muted2);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+
+    .nav-cta {
+      background: linear-gradient(135deg, var(--blue), #2563eb);
+      color: white !important;
+      padding: 9px 22px;
+      border-radius: 8px;
+      font-weight: 600 !important;
+      font-size: 13px !important;
+    }
+
+    /* ══════════════════════════════
+       HERO SECTION
+    ══════════════════════════════ */
+    .hero {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      align-items: center;
+      gap: 60px;
+      padding: 120px 80px 80px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Animated background blobs */
+    .hero::after {
+      content: '';
+      position: absolute;
+      width: 600px; height: 600px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(59,130,246,0.12) 0%, transparent 70%);
+      top: -100px; right: -100px;
+      animation: blobPulse 6s ease-in-out infinite alternate;
+      pointer-events: none;
+    }
+
+    .blob2 {
+      position: absolute;
+      width: 400px; height: 400px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(34,211,238,0.08) 0%, transparent 70%);
+      bottom: 0; left: 200px;
+      animation: blobPulse 8s ease-in-out infinite alternate-reverse;
+      pointer-events: none;
+    }
+
+    @keyframes blobPulse {
+      from { transform: scale(1) translate(0, 0); }
+      to   { transform: scale(1.15) translate(30px, -20px); }
+    }
+
+    .hero-left { position: relative; z-index: 1; }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(59,130,246,0.1);
+      border: 1px solid rgba(59,130,246,0.25);
+      border-radius: 100px;
+      padding: 6px 16px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--blue2);
+      margin-bottom: 28px;
+      animation: fadeUp 0.6s ease both;
+    }
+
+    .hero-badge::before {
+      content: '';
+      width: 7px; height: 7px;
+      background: var(--green);
+      border-radius: 50%;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    .hero h1 {
+      font-size: clamp(38px, 5vw, 58px);
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -1.5px;
+      margin-bottom: 20px;
+      animation: fadeUp 0.6s ease 0.1s both;
+    }
+
+    .hero h1 .accent {
+      background: linear-gradient(135deg, var(--blue2) 0%, var(--cyan) 50%, var(--green) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-sub {
+      font-size: 17px;
+      color: var(--muted2);
+      line-height: 1.7;
+      max-width: 480px;
+      margin-bottom: 36px;
+      font-weight: 300;
+      animation: fadeUp 0.6s ease 0.2s both;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      animation: fadeUp 0.6s ease 0.3s both;
+    }
+
+    .btn-primary-hero {
+      background: linear-gradient(135deg, var(--blue), #1d4ed8);
+      color: white;
+      padding: 14px 32px;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 4px 24px rgba(59,130,246,0.3);
+      font-family: 'DM Sans', sans-serif;
+    }
+
+    .btn-primary-hero:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(59,130,246,0.45);
+    }
+
+    .btn-outline-hero {
+      background: transparent;
+      color: var(--text);
+      padding: 14px 28px;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 500;
+      text-decoration: none;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      font-family: 'DM Sans', sans-serif;
+    }
+
+    .btn-outline-hero:hover {
+      border-color: rgba(255,255,255,0.2);
+      background: rgba(255,255,255,0.04);
+    }
+
+    .hero-stats {
+      display: flex;
+      gap: 32px;
+      margin-top: 48px;
+      padding-top: 32px;
+      border-top: 1px solid var(--border);
+      animation: fadeUp 0.6s ease 0.4s both;
+    }
+
+    .stat-item {}
+    .stat-num {
+      font-family: 'Syne', sans-serif;
+      font-size: 26px;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--blue2), var(--cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .stat-label { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    /* ── HERO RIGHT: PHONE MOCKUP ── */
+    .hero-right {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      animation: fadeUp 0.8s ease 0.2s both;
+    }
+
+    .phone-wrap {
+      position: relative;
+      width: 280px;
+    }
+
+    /* Glow behind phone */
+    .phone-wrap::before {
+      content: '';
+      position: absolute;
+      inset: -40px;
+      background: radial-gradient(ellipse, rgba(59,130,246,0.2) 0%, transparent 70%);
+      border-radius: 50%;
+      animation: blobPulse 4s ease-in-out infinite alternate;
+    }
+
+    .phone-frame {
+      width: 280px;
+      height: 560px;
+      background: linear-gradient(145deg, #1e293b, #0f172a);
+      border-radius: 40px;
+      border: 2px solid rgba(255,255,255,0.12);
+      padding: 14px;
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.04),
+        0 40px 80px rgba(0,0,0,0.6),
+        inset 0 1px 0 rgba(255,255,255,0.1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Phone notch */
+    .phone-notch {
+      width: 80px; height: 20px;
+      background: #0a0f1e;
+      border-radius: 0 0 14px 14px;
+      margin: 0 auto 10px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .phone-screen {
+      background: #0f172a;
+      border-radius: 28px;
+      height: calc(100% - 34px);
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* App UI inside phone */
+    .app-header {
+      background: linear-gradient(135deg, #1e3a8a, #0f172a);
+      padding: 14px 12px 10px;
+      border-bottom: 1px solid rgba(59,130,246,0.3);
+    }
+    .app-header-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      color: white;
+      letter-spacing: 0.5px;
+    }
+    .app-header-sub { font-size: 8px; color: #60a5fa; margin-top: 2px; }
+
+    .app-metrics {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      padding: 10px;
+    }
+    .app-metric-card {
+      background: #1e293b;
+      border-radius: 8px;
+      padding: 8px;
+      border-left: 2px solid var(--blue);
+    }
+    .app-metric-card.green { border-left-color: var(--green); }
+    .app-metric-card.gold { border-left-color: var(--gold); }
+    .app-metric-label { font-size: 7px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+    .app-metric-val { font-size: 13px; font-weight: 700; color: #3b82f6; margin-top: 2px; font-family: 'Syne', sans-serif; }
+    .app-metric-val.green { color: var(--green); }
+    .app-metric-val.gold { color: var(--gold); }
+
+    .app-ledger-header {
+      padding: 6px 10px;
+      font-size: 9px;
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      color: #22d3ee;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .app-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 7px 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+      animation: rowSlide 0.5s ease both;
+    }
+    .app-row:nth-child(2) { animation-delay: 0.1s; }
+    .app-row:nth-child(3) { animation-delay: 0.2s; }
+    .app-row:nth-child(4) { animation-delay: 0.3s; }
+
+    @keyframes rowSlide {
+      from { opacity: 0; transform: translateX(10px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    .app-row-name { font-size: 8px; font-weight: 600; color: #f59e0b; }
+    .app-row-mobile { font-size: 7px; color: #64748b; }
+    .app-row-amount { font-size: 9px; font-weight: 700; color: #10b981; }
+    .app-row-badge {
+      font-size: 6px;
+      padding: 2px 5px;
+      border-radius: 4px;
+      background: rgba(59,130,246,0.2);
+      color: #60a5fa;
+    }
+
+    /* Floating person illustration */
+    .person-wrap {
+      position: absolute;
+      right: -30px;
+      top: -20px;
+      z-index: 10;
+    }
+
+    /* SVG Person */
+    .person-svg {
+      width: 160px;
+      filter: drop-shadow(0 20px 40px rgba(59,130,246,0.4));
+      animation: personFloat 3s ease-in-out infinite alternate;
+    }
+
+    @keyframes personFloat {
+      from { transform: translateY(0px) rotate(-1deg); }
+      to   { transform: translateY(-12px) rotate(1deg); }
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ══════════════════════════════
+       FEATURES SECTION
+    ══════════════════════════════ */
+    .features {
+      padding: 100px 80px;
+      position: relative;
+    }
+
+    .section-label {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--cyan);
+      margin-bottom: 14px;
+    }
+
+    .section-title {
+      font-size: clamp(28px, 4vw, 42px);
+      font-weight: 800;
+      letter-spacing: -1px;
+      line-height: 1.15;
+      margin-bottom: 16px;
+    }
+
+    .section-sub {
+      color: var(--muted2);
+      font-size: 16px;
+      line-height: 1.7;
+      max-width: 520px;
+      font-weight: 300;
+      margin-bottom: 60px;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px;
+      transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--blue), var(--cyan));
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .feature-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(59,130,246,0.3);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+    }
+
+    .feature-card:hover::before { opacity: 1; }
+
+    .feature-icon {
+      width: 48px; height: 48px;
+      background: rgba(59,130,246,0.1);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      margin-bottom: 18px;
+      border: 1px solid rgba(59,130,246,0.2);
+    }
+
+    .feature-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: var(--text);
+    }
+
+    .feature-desc {
+      font-size: 14px;
+      color: var(--muted2);
+      line-height: 1.65;
+      font-weight: 300;
+    }
+
+    /* ══════════════════════════════
+       PRICING SECTION
+    ══════════════════════════════ */
+    .pricing {
+      padding: 100px 80px;
+      text-align: center;
+      background: linear-gradient(180deg, transparent, rgba(30,41,59,0.3), transparent);
+    }
+
+    .pricing-cards {
+      display: grid;
+      grid-template-columns: repeat(2, 360px);
+      gap: 24px;
+      justify-content: center;
+      margin-top: 60px;
+    }
+
+    .pricing-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 36px 32px;
+      text-align: left;
+      transition: transform 0.3s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .pricing-card.featured {
+      border-color: rgba(59,130,246,0.4);
+      background: linear-gradient(145deg, #1e293b, #162032);
+      box-shadow: 0 0 60px rgba(59,130,246,0.12);
+    }
+
+    .pricing-card.featured::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--blue), var(--cyan), var(--green));
+    }
+
+    .pricing-card:hover { transform: translateY(-4px); }
+
+    .pricing-badge {
+      display: inline-block;
+      background: linear-gradient(135deg, var(--blue), var(--cyan));
+      color: white;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 12px;
+      border-radius: 100px;
+      margin-bottom: 20px;
+      letter-spacing: 0.5px;
+    }
+
+    .pricing-name {
+      font-size: 20px;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+
+    .pricing-desc {
+      font-size: 13px;
+      color: var(--muted2);
+      margin-bottom: 28px;
+      font-weight: 300;
+    }
+
+    .pricing-price {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .price-currency { font-size: 22px; font-weight: 600; color: var(--muted2); }
+    .price-amount {
+      font-family: 'Syne', sans-serif;
+      font-size: 52px;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--blue2), var(--cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      line-height: 1;
+    }
+    .price-period { font-size: 14px; color: var(--muted); }
+
+    .price-trial-note {
+      font-size: 12px;
+      color: var(--green);
+      font-weight: 500;
+      margin-bottom: 28px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .pricing-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 24px 0;
+    }
+
+    .pricing-features { list-style: none; margin-bottom: 32px; }
+    .pricing-features li {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      color: var(--muted2);
+      padding: 7px 0;
+      font-weight: 300;
+    }
+    .pricing-features li::before {
+      content: '✓';
+      color: var(--green);
+      font-weight: 700;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+
+    .btn-pricing {
+      width: 100%;
+      padding: 13px;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      font-family: 'DM Sans', sans-serif;
+      text-decoration: none;
+      display: block;
+      text-align: center;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .btn-pricing-primary {
+      background: linear-gradient(135deg, var(--blue), #2563eb);
+      color: white;
+      box-shadow: 0 4px 20px rgba(59,130,246,0.3);
+    }
+
+    .btn-pricing-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 28px rgba(59,130,246,0.45);
+    }
+
+    .btn-pricing-outline {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border) !important;
+    }
+
+    .btn-pricing-outline:hover {
+      background: rgba(255,255,255,0.04);
+      border-color: rgba(255,255,255,0.15) !important;
+    }
+
+    /* ══════════════════════════════
+       HOW IT WORKS
+    ══════════════════════════════ */
+    .howitworks {
+      padding: 100px 80px;
+    }
+
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0;
+      margin-top: 60px;
+      position: relative;
+    }
+
+    .steps-grid::before {
+      content: '';
+      position: absolute;
+      top: 28px;
+      left: 12.5%;
+      right: 12.5%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--blue), var(--cyan), transparent);
+    }
+
+    .step-item { text-align: center; padding: 0 20px; }
+
+    .step-num {
+      width: 56px; height: 56px;
+      background: linear-gradient(135deg, var(--blue), #1d4ed8);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Syne', sans-serif;
+      font-size: 20px;
+      font-weight: 800;
+      color: white;
+      margin: 0 auto 20px;
+      box-shadow: 0 0 0 6px rgba(59,130,246,0.1);
+      position: relative;
+      z-index: 1;
+    }
+
+    .step-title {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .step-desc {
+      font-size: 13px;
+      color: var(--muted2);
+      line-height: 1.6;
+      font-weight: 300;
+    }
+
+    /* ══════════════════════════════
+       TERMS & CONDITIONS
+    ══════════════════════════════ */
+    .terms {
+      padding: 80px 80px;
+      background: rgba(30,41,59,0.3);
+    }
+
+    .terms-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 40px;
+      margin-top: 50px;
+    }
+
+    .terms-block h4 {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--cyan);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 16px;
+    }
+
+    .terms-block ol, .terms-block ul { padding-left: 18px; }
+    .terms-block li {
+      font-size: 13px;
+      color: var(--muted2);
+      line-height: 1.7;
+      margin-bottom: 8px;
+      font-weight: 300;
+    }
+
+    /* ══════════════════════════════
+       CONTACT SECTION
+    ══════════════════════════════ */
+    .contact {
+      padding: 80px 80px;
+      text-align: center;
+    }
+
+    .contact-card {
+      max-width: 600px;
+      margin: 40px auto 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 40px;
+    }
+
+    .contact-items {
+      display: flex;
+      gap: 24px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 28px;
+    }
+
+    .contact-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(59,130,246,0.08);
+      border: 1px solid rgba(59,130,246,0.2);
+      border-radius: 10px;
+      padding: 12px 20px;
+      text-decoration: none;
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 500;
+      transition: background 0.2s, transform 0.2s;
+    }
+
+    .contact-item:hover {
+      background: rgba(59,130,246,0.15);
+      transform: translateY(-2px);
+    }
+
+    .contact-icon { font-size: 18px; }
+
+    /* ══════════════════════════════
+       FOOTER
+    ══════════════════════════════ */
+    footer {
+      padding: 32px 80px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .footer-logo {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 16px;
+      background: linear-gradient(135deg, var(--blue2), var(--cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .footer-copy {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* ══════════════════════════════
+       LOGIN MODAL
+    ══════════════════════════════ */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(8px);
+      z-index: 9999;
       justify-content: center;
       align-items: center;
     }
-    #trialExpiredOverlay.show { display: flex; }
-    .trial-box {
-      background: #1e293b;
-      border: 2px solid #ef4444;
-      border-radius: 16px;
-      padding: 40px 32px;
-      max-width: 480px;
-      width: 90%;
-      text-align: center;
+
+    .modal-overlay.open { display: flex; }
+
+    .modal-box {
+      background: var(--surface2);
+      border: 1px solid rgba(59,130,246,0.2);
+      border-radius: 20px;
+      padding: 40px;
+      width: 100%;
+      max-width: 420px;
+      position: relative;
+      animation: modalIn 0.3s ease both;
+      box-shadow: 0 40px 80px rgba(0,0,0,0.5);
     }
-    .trial-box .expired-icon { font-size: 56px; margin-bottom: 12px; }
-    .trial-box h3 { color: #ef4444; font-weight: 800; margin-bottom: 8px; }
-    .trial-box p { color: #94a3b8; margin-bottom: 24px; }
-    .pay-btn {
-      background: linear-gradient(135deg, #10b981, #059669);
+
+    @keyframes modalIn {
+      from { opacity: 0; transform: scale(0.94) translateY(16px); }
+      to   { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 16px; right: 20px;
+      background: none;
+      border: none;
+      color: var(--muted2);
+      font-size: 20px;
+      cursor: pointer;
+      line-height: 1;
+      transition: color 0.2s;
+    }
+    .modal-close:hover { color: var(--text); }
+
+    .modal-logo {
+      text-align: center;
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 22px;
+      background: linear-gradient(135deg, var(--blue2), var(--cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 6px;
+    }
+
+    .modal-tagline {
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 28px;
+    }
+
+    .modal-tabs {
+      display: flex;
+      background: var(--ink2);
+      border-radius: 10px;
+      padding: 4px;
+      margin-bottom: 24px;
+    }
+
+    .modal-tab {
+      flex: 1;
+      padding: 9px;
+      border: none;
+      background: none;
+      color: var(--muted2);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border-radius: 8px;
+      transition: all 0.2s;
+      font-family: 'DM Sans', sans-serif;
+    }
+
+    .modal-tab.active {
+      background: var(--surface2);
+      color: var(--blue2);
+      font-weight: 600;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    .form-field { margin-bottom: 16px; }
+    .form-field label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted2);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .form-field input, .form-field select {
+      width: 100%;
+      background: var(--ink2);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 9px;
+      padding: 11px 14px;
+      color: var(--text);
+      font-size: 14px;
+      font-family: 'DM Sans', sans-serif;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .form-field input:focus, .form-field select:focus {
+      border-color: rgba(59,130,246,0.5);
+    }
+
+    .form-field select option { background: var(--ink2); }
+
+    .modal-alert {
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-bottom: 16px;
+      display: none;
+    }
+    .modal-alert.error { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; display: block; }
+    .modal-alert.success { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); color: #6ee7b7; display: block; }
+
+    .btn-modal-submit {
+      width: 100%;
+      padding: 13px;
+      background: linear-gradient(135deg, var(--blue), #1d4ed8);
       color: white;
       border: none;
       border-radius: 10px;
-      padding: 14px 32px;
-      font-size: 18px;
-      font-weight: 700;
-      width: 100%;
-      cursor: pointer;
-      text-decoration: none;
-      display: block;
-      margin-bottom: 12px;
-      transition: transform 0.1s;
-    }
-    .pay-btn:hover { transform: scale(1.02); color: white; }
-
-    /* NEW: Trial warning banner — dashboard ke top par dikhega */
-    #trialWarningBanner {
-      display: none;
-      background: linear-gradient(90deg, #92400e, #b45309);
-      color: #fef3c7;
-      text-align: center;
-      padding: 10px;
+      font-size: 15px;
       font-weight: 600;
-      font-size: 14px;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 4px 20px rgba(59,130,246,0.3);
     }
-    #trialWarningBanner.show { display: block; }
+
+    .btn-modal-submit:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 24px rgba(59,130,246,0.4);
+    }
+
+    .modal-footer-note {
+      text-align: center;
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 16px;
+    }
+
+    .modal-footer-note a { color: var(--blue2); text-decoration: none; }
+
+    /* ══════════════════════════════
+       RESPONSIVE
+    ══════════════════════════════ */
+    @media (max-width: 1024px) {
+      .hero { grid-template-columns: 1fr; padding: 100px 40px 60px; text-align: center; }
+      .hero-sub { margin: 0 auto 36px; }
+      .hero-actions { justify-content: center; }
+      .hero-stats { justify-content: center; }
+      .hero-right { display: none; }
+      .features, .pricing, .howitworks, .terms, .contact { padding: 80px 40px; }
+      .features-grid { grid-template-columns: 1fr 1fr; }
+      .steps-grid { grid-template-columns: 1fr 1fr; gap: 40px; }
+      .steps-grid::before { display: none; }
+      .pricing-cards { grid-template-columns: 1fr; max-width: 400px; }
+      .terms-grid { grid-template-columns: 1fr; }
+      footer { flex-direction: column; gap: 12px; text-align: center; padding: 28px 40px; }
+    }
+
+    @media (max-width: 640px) {
+      nav { padding: 14px 20px; }
+      .nav-links { gap: 16px; }
+      .nav-links a:not(.nav-cta) { display: none; }
+      .hero { padding: 90px 24px 60px; }
+      .features, .pricing, .howitworks, .terms, .contact { padding: 60px 24px; }
+      .features-grid, .steps-grid { grid-template-columns: 1fr; }
+      .modal-box { margin: 20px; padding: 28px 24px; }
+    }
   </style>
 </head>
 <body>
 
-  <!-- ============================================================
-       TRIAL EXPIRED FULL-SCREEN OVERLAY
-       -- Jab 45 din poore hote hain, yeh poore screen par aa jaata hai
-       -- Razorpay payment link yahan hai
-  ============================================================ -->
-  <div id="trialExpiredOverlay">
-    <div class="trial-box">
-      <div class="expired-icon">⏰</div>
-      <h3>Free Trial Khatam Ho Gaya!</h3>
-      <p>Aapka <strong>45-din ka Free Trial</strong> expire ho gaya hai.<br>
-        Dashboard use karna jaari rakhne ke liye please payment karein.</p>
-      <div class="alert alert-info text-start mb-3 small">
-        ✅ Payment ke baad apna <strong>Transaction ID / Screenshot</strong> WhatsApp par bhejein — 
-        24 ghante mein aapka account <span class="text-success fw-bold">ACTIVE</span> kar diya jaayega.
-      </div>
-      <!-- RAZORPAY PAYMENT LINK — seedha Razorpay par le jaata hai -->
-      <a href="https://razorpay.me/@tusharratansukh" target="_blank" class="pay-btn">
-        💳 Abhi Payment Karein — Razorpay
-      </a>
-      <button onclick="logoutUser()" class="btn btn-outline-secondary w-100">
-        Sign Out
-      </button>
+  <!-- ══ NAVBAR ══ -->
+  <nav>
+    <div class="nav-logo">Vasool<span>ify</span></div>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#howitworks">How it Works</a>
+      <a href="#contact">Contact</a>
+      <a href="#" class="nav-cta" onclick="openModal('login'); return false;">Login →</a>
     </div>
-  </div>
+  </nav>
 
-  <!-- AUTH SCREEN -->
-  <div id="authScreen" class="container card p-4">
-    <h3 class="text-center mb-4 text-primary fw-bold">VASOOLIFY</h3>
+  <!-- ══ HERO ══ -->
+  <section class="hero" id="home">
+    <div class="blob2"></div>
 
-    <ul class="nav nav-tabs mb-4 justify-content-center" id="authTabs">
-      <li class="nav-item"><button type="button" id="tab-login" class="nav-link active" onclick="switchAuthTab('login')">PIN Login</button></li>
-      <li class="nav-item"><button type="button" id="tab-register" class="nav-link" onclick="switchAuthTab('register')">New Register</button></li>
-      <li class="nav-item"><button type="button" id="tab-forgot" class="nav-link" onclick="switchAuthTab('forgot')">Forgot PIN</button></li>
-    </ul>
-
-    <div id="authAlert" class="alert alert-danger d-none"></div>
-
-    <!-- LOGIN FORM -->
-    <form id="loginForm" onsubmit="handleEmailPinLogin(event)">
-      <div class="mb-3">
-        <label class="form-label required">Email Address</label>
-        <input type="email" id="loginEmail" class="form-control" required placeholder="name@company.com">
+    <div class="hero-left">
+      <div class="hero-badge">🚀 India's Smartest Collection Tool</div>
+      <h1>
+        EMI Collection<br>
+        <span class="accent">Simplified.</span><br>
+        Digitized.
+      </h1>
+      <p class="hero-sub">
+        Vasoolify aapke EMI collections, customer records, aur payments ko ek jagah manage karta hai — real-time cloud sync ke saath. Koi paper nahi, koi confusion nahi.
+      </p>
+      <div class="hero-actions">
+        <a href="#" class="btn-primary-hero" onclick="openModal('register'); return false;">
+          🎯 45-Din Free Trial Shuru Karein
+        </a>
+        <a href="#features" class="btn-outline-hero">Features Dekhein ↓</a>
       </div>
-      <div class="mb-3">
-        <label class="form-label required">6-Digit Secure PIN</label>
-        <input type="password" id="loginPin" class="form-control" oninput="if(this.value.length > 6) this.value = this.value.slice(0,6);" required placeholder="••••••">
+      <div class="hero-stats">
+        <div class="stat-item">
+          <div class="stat-num">45</div>
+          <div class="stat-label">Days Free Trial</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-num">₹89</div>
+          <div class="stat-label">Per Month Only</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-num">100%</div>
+          <div class="stat-label">Cloud Secured</div>
+        </div>
       </div>
-      <button type="submit" class="btn btn-primary w-100 py-2 fw-bold">Secure Access Login</button>
-    </form>
-
-    <!-- REGISTER FORM -->
-    <form id="registerForm" style="display: none;" onsubmit="handleProfileRegister(event)">
-      <div class="mb-3">
-        <label class="form-label required">User / Business Name</label>
-        <input type="text" id="regName" class="form-control" required placeholder="e.g. TUSHAR SUKH" style="text-transform: uppercase;">
-      </div>
-      <div class="mb-3">
-        <label class="form-label required">Email Address</label>
-        <input type="email" id="regEmail" class="form-control" required placeholder="name@company.com">
-      </div>
-      <div class="mb-3">
-        <label class="form-label required">Mobile Number</label>
-        <input type="number" id="regMobile" class="form-control" oninput="if(this.value.length > 10) this.value = this.value.slice(0,10);" required placeholder="10 Digit Mobile No">
-      </div>
-      <div class="mb-3">
-        <label class="form-label required">Set 6-Digit Secure PIN</label>
-        <input type="password" id="regPin" class="form-control" oninput="if(this.value.length > 6) this.value = this.value.slice(0,6);" required placeholder="e.g. 123456">
-      </div>
-      <button type="submit" class="btn btn-success w-100 py-2 fw-bold">Register & Start 45-Day Free Trial</button>
-    </form>
-
-    <!-- FORGOT PIN FORM -->
-    <form id="forgotForm" style="display: none;" onsubmit="handleForgotPin(event)">
-      <p class="text-muted small mb-3">Apna registered Email daalo. Aapko ek secure Reset Link milega.</p>
-      <div class="mb-3">
-        <label class="form-label required">Registered Email Address</label>
-        <input type="email" id="forgotEmail" class="form-control" required placeholder="name@company.com">
-      </div>
-      <button type="submit" class="btn btn-warning w-100 py-2 fw-bold text-dark">📧 Send PIN Reset Link</button>
-      <p class="text-muted small mt-2 text-center">Reset link email inbox mein aayega (spam bhi check karein).</p>
-    </form>
-
-    <!-- RESET PIN FORM — email link click karne ke baad dikhega -->
-    <form id="resetPinForm" style="display: none;" onsubmit="handleSetNewPin(event)">
-      <p class="text-success small mb-3 fw-bold">✅ Reset link verified! Naya 6-digit PIN set karein.</p>
-      <div class="mb-3">
-        <label class="form-label required">New 6-Digit Secure PIN</label>
-        <input type="password" id="newPin" class="form-control" oninput="if(this.value.length > 6) this.value = this.value.slice(0,6);" required placeholder="New PIN (6 digits)">
-      </div>
-      <div class="mb-3">
-        <label class="form-label required">Confirm New PIN</label>
-        <input type="password" id="confirmPin" class="form-control" oninput="if(this.value.length > 6) this.value = this.value.slice(0,6);" required placeholder="Confirm PIN">
-      </div>
-      <button type="submit" class="btn btn-success w-100 py-2 fw-bold">🔐 Save New PIN & Login</button>
-    </form>
-  </div>
-
-  <!-- MAIN DASHBOARD -->
-  <div id="mainDashboard" class="container-fluid p-0">
-
-    <!-- NEW: Trial warning banner — last 7 din mein dikhega -->
-    <div id="trialWarningBanner">
-      ⚠️ <span id="trialWarningText"></span> &nbsp;|&nbsp;
-      <a href="https://razorpay.me/@tusharratansukh" target="_blank" style="color:#fbbf24; font-weight:800;">
-        Abhi Pay Karein →
-      </a>
     </div>
 
-    <div class="header-panel d-flex justify-content-between align-items-center px-4">
-      <div>
-        <h2 class="fw-bold mb-0 text-white">VASOOLIFY SYSTEM</h2>
-        <!-- NEW: Trial days remaining bhi dikhega status ke saath -->
-        <p class="mb-0 text-info">
-          Operator: <span id="userDisplay" class="fw-bold text-warning">Loading...</span> |
-          Status: <span id="statusDisplay" class="badge bg-warning text-dark">TRIAL</span> |
-          <span id="trialDaysDisplay" class="small text-info"></span>
+    <!-- PHONE MOCKUP -->
+    <div class="hero-right">
+
+      <!-- Floating illustrated person holding phone -->
+      <div class="person-wrap">
+        <svg class="person-svg" viewBox="0 0 160 320" xmlns="http://www.w3.org/2000/svg">
+          <!-- Glow effect -->
+          <defs>
+            <radialGradient id="personGlow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.3"/>
+              <stop offset="100%" stop-color="#3b82f6" stop-opacity="0"/>
+            </radialGradient>
+            <linearGradient id="skinGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#fbbf24"/>
+              <stop offset="100%" stop-color="#f59e0b"/>
+            </linearGradient>
+            <linearGradient id="dressGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#3b82f6"/>
+              <stop offset="100%" stop-color="#1d4ed8"/>
+            </linearGradient>
+            <linearGradient id="phoneGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#1e293b"/>
+              <stop offset="100%" stop-color="#0f172a"/>
+            </linearGradient>
+            <linearGradient id="hairGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#1a0a00"/>
+              <stop offset="100%" stop-color="#3d1a00"/>
+            </linearGradient>
+          </defs>
+
+          <!-- Body glow -->
+          <ellipse cx="80" cy="180" rx="60" ry="80" fill="url(#personGlow)"/>
+
+          <!-- Hair (long) -->
+          <ellipse cx="80" cy="72" rx="32" ry="34" fill="url(#hairGrad)"/>
+          <path d="M50 80 Q44 120 48 160" stroke="#1a0a00" stroke-width="12" fill="none" stroke-linecap="round"/>
+          <path d="M110 80 Q116 120 112 160" stroke="#1a0a00" stroke-width="12" fill="none" stroke-linecap="round"/>
+          <path d="M54 65 Q80 45 106 65" fill="url(#hairGrad)"/>
+
+          <!-- Face -->
+          <ellipse cx="80" cy="80" rx="26" ry="28" fill="url(#skinGrad)"/>
+
+          <!-- Blush -->
+          <ellipse cx="62" cy="88" rx="7" ry="4" fill="#f87171" opacity="0.35"/>
+          <ellipse cx="98" cy="88" rx="7" ry="4" fill="#f87171" opacity="0.35"/>
+
+          <!-- Eyes -->
+          <ellipse cx="70" cy="78" rx="5" ry="6" fill="white"/>
+          <ellipse cx="90" cy="78" rx="5" ry="6" fill="white"/>
+          <ellipse cx="71" cy="79" rx="3" ry="4" fill="#1a0a00"/>
+          <ellipse cx="91" cy="79" rx="3" ry="4" fill="#1a0a00"/>
+          <!-- Eye shine -->
+          <circle cx="72.5" cy="77.5" r="1.2" fill="white"/>
+          <circle cx="92.5" cy="77.5" r="1.2" fill="white"/>
+
+          <!-- Eyebrows -->
+          <path d="M63 71 Q70 68 77 71" stroke="#3d1a00" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+          <path d="M83 71 Q90 68 97 71" stroke="#3d1a00" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+
+          <!-- Smile -->
+          <path d="M68 92 Q80 102 92 92" stroke="#c2410c" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+
+          <!-- Nose -->
+          <path d="M78 84 Q80 89 82 84" stroke="#e88a2e" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+
+          <!-- Neck -->
+          <rect x="73" y="105" width="14" height="16" rx="4" fill="url(#skinGrad)"/>
+
+          <!-- Dress / Kurta body -->
+          <path d="M46 118 Q80 112 114 118 L118 230 Q80 238 42 230 Z" fill="url(#dressGrad)"/>
+          <!-- Dress neckline detail -->
+          <path d="M68 118 Q80 130 92 118" stroke="#60a5fa" stroke-width="2" fill="none"/>
+          <!-- Dress embroidery lines -->
+          <line x1="65" y1="145" x2="95" y2="145" stroke="#60a5fa" stroke-width="1" opacity="0.5"/>
+          <line x1="63" y1="158" x2="97" y2="158" stroke="#60a5fa" stroke-width="1" opacity="0.4"/>
+
+          <!-- Left arm (natural) -->
+          <path d="M46 125 Q30 145 32 170" stroke="url(#skinGrad)" stroke-width="13" fill="none" stroke-linecap="round"/>
+
+          <!-- Right arm (holding phone) -->
+          <path d="M114 125 Q128 140 124 165" stroke="url(#skinGrad)" stroke-width="13" fill="none" stroke-linecap="round"/>
+
+          <!-- Left hand -->
+          <ellipse cx="32" cy="173" rx="8" ry="6" fill="url(#skinGrad)"/>
+
+          <!-- Right hand holding phone -->
+          <ellipse cx="124" cy="168" rx="8" ry="6" fill="url(#skinGrad)"/>
+
+          <!-- Phone in hand -->
+          <rect x="110" y="155" width="26" height="44" rx="4" fill="url(#phoneGrad)" stroke="#334155" stroke-width="1.5"/>
+          <!-- Phone screen -->
+          <rect x="113" y="159" width="20" height="36" rx="2" fill="#0f172a"/>
+          <!-- Phone screen content -->
+          <rect x="114" y="161" width="18" height="4" rx="1" fill="#1e3a8a"/>
+          <rect x="115" y="167" width="7" height="3" rx="1" fill="#3b82f6" opacity="0.8"/>
+          <rect x="115" y="172" width="9" height="3" rx="1" fill="#10b981" opacity="0.8"/>
+          <rect x="115" y="177" width="6" height="3" rx="1" fill="#f59e0b" opacity="0.8"/>
+          <rect x="115" y="182" width="8" height="3" rx="1" fill="#3b82f6" opacity="0.6"/>
+          <rect x="115" y="187" width="5" height="3" rx="1" fill="#10b981" opacity="0.6"/>
+
+          <!-- Legs -->
+          <path d="M58 228 Q54 270 56 300" stroke="#1d4ed8" stroke-width="14" fill="none" stroke-linecap="round"/>
+          <path d="M102 228 Q106 270 104 300" stroke="#1d4ed8" stroke-width="14" fill="none" stroke-linecap="round"/>
+
+          <!-- Feet / Shoes -->
+          <ellipse cx="56" cy="302" rx="10" ry="5" fill="#1a0a00"/>
+          <ellipse cx="104" cy="302" rx="10" ry="5" fill="#1a0a00"/>
+
+          <!-- Star sparkles -->
+          <text x="18" y="55" font-size="14" fill="#fbbf24" opacity="0.8">✦</text>
+          <text x="130" y="50" font-size="10" fill="#22d3ee" opacity="0.7">✦</text>
+          <text x="8" y="140" font-size="8" fill="#3b82f6" opacity="0.6">✦</text>
+          <text x="142" y="130" font-size="12" fill="#10b981" opacity="0.7">✦</text>
+        </svg>
+      </div>
+
+      <!-- Phone frame (dashboard preview) -->
+      <div class="phone-frame" style="margin-top: 60px;">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="app-header">
+            <div class="app-header-title">VASOOLIFY SYSTEM</div>
+            <div class="app-header-sub">Operator: TUSHAR SUKH | TRIAL</div>
+          </div>
+          <div class="app-metrics">
+            <div class="app-metric-card">
+              <div class="app-metric-label">Total Collected</div>
+              <div class="app-metric-val">₹42,500</div>
+            </div>
+            <div class="app-metric-card green">
+              <div class="app-metric-label">Total Entries</div>
+              <div class="app-metric-val green">24 Records</div>
+            </div>
+            <div class="app-metric-card gold" style="grid-column: span 2;">
+              <div class="app-metric-label">Balance Remaining</div>
+              <div class="app-metric-val gold">₹8,200</div>
+            </div>
+          </div>
+          <div class="app-ledger-header">📋 Collection Ledger</div>
+          <div class="app-row">
+            <div><div class="app-row-name">RAMESH KUMAR</div><div class="app-row-mobile">98765•••••</div></div>
+            <div style="text-align:right"><div class="app-row-amount">₹2,500</div><div class="app-row-badge">Cash</div></div>
+          </div>
+          <div class="app-row">
+            <div><div class="app-row-name">SUNITA DEVI</div><div class="app-row-mobile">87654•••••</div></div>
+            <div style="text-align:right"><div class="app-row-amount">₹1,800</div><div class="app-row-badge">UPI</div></div>
+          </div>
+          <div class="app-row">
+            <div><div class="app-row-name">VIJAY SINGH</div><div class="app-row-mobile">76543•••••</div></div>
+            <div style="text-align:right"><div class="app-row-amount">₹3,200</div><div class="app-row-badge">Cash</div></div>
+          </div>
+          <div class="app-row">
+            <div><div class="app-row-name">PRIYA SHARMA</div><div class="app-row-mobile">65432•••••</div></div>
+            <div style="text-align:right"><div class="app-row-amount">₹1,500</div><div class="app-row-badge">UPI</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ FEATURES ══ -->
+  <section class="features" id="features">
+    <div class="section-label">Why Vasoolify</div>
+    <h2 class="section-title">Sab kuch ek jagah —<br>Smart aur Secure</h2>
+    <p class="section-sub">Field collection agents se lekar finance managers tak — sabke liye designed.</p>
+
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">☁️</div>
+        <div class="feature-title">Real-Time Cloud Sync</div>
+        <div class="feature-desc">Har entry turant cloud par save hoti hai. Koi data loss nahi — kabhi nahi. Multiple devices par ek saath access karein.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔍</div>
+        <div class="feature-title">Smart Customer Search</div>
+        <div class="feature-desc">Customer ka naam ya mobile number se instantly dhundein. Poori payment history ek click mein.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📥</div>
+        <div class="feature-title">PDF Reports</div>
+        <div class="feature-desc">Date, month, ya receipt type se filter karein aur professional PDF report download karein — kisi bhi samay.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔐</div>
+        <div class="feature-title">6-Digit PIN Security</div>
+        <div class="feature-desc">Aapka data sirf aapka hai. 6-digit PIN se secured login. Koi bhi aapka data access nahi kar sakta.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📊</div>
+        <div class="feature-title">Live Dashboard Metrics</div>
+        <div class="feature-desc">Total collection, pending balance, aur entries count — real-time mein dekhein. Decision lena ab aasaan hai.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📱</div>
+        <div class="feature-title">Mobile Friendly</div>
+        <div class="feature-desc">Field mein ho ya office mein — kisi bhi device se kaam karo. No app download needed.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ HOW IT WORKS ══ -->
+  <section class="howitworks" id="howitworks">
+    <div class="section-label">Simple Process</div>
+    <h2 class="section-title">4 Steps mein shuru karein</h2>
+    <p class="section-sub">Koi training nahi chahiye. Koi technical knowledge nahi chahiye.</p>
+
+    <div class="steps-grid">
+      <div class="step-item">
+        <div class="step-num">1</div>
+        <div class="step-title">Register Karein</div>
+        <div class="step-desc">Apna naam, email, aur 6-digit PIN set karein. 30 second ka kaam.</div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">2</div>
+        <div class="step-title">Login Karein</div>
+        <div class="step-desc">Email aur PIN se secure login. Koi OTP wait nahi.</div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">3</div>
+        <div class="step-title">Entry Add Karein</div>
+        <div class="step-desc">Customer ka naam, EMI amount, payment mode — sab fill karo aur save karo.</div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">4</div>
+        <div class="step-title">Report Nikaalein</div>
+        <div class="step-desc">Filter karein aur PDF download karein. Client ko share karein instantly.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ PRICING ══ -->
+  <section class="pricing" id="pricing">
+    <div class="section-label">Pricing</div>
+    <h2 class="section-title">Simple, Affordable Pricing</h2>
+    <p class="section-sub" style="margin: 0 auto 0;">Koi hidden charges nahi. Koi contract nahi. Sirf results.</p>
+
+    <div class="pricing-cards">
+      <div class="pricing-card">
+        <div class="pricing-name">Free Trial</div>
+        <div class="pricing-desc">Pehle use karo, phir decide karo.</div>
+        <div class="pricing-price">
+          <span class="price-currency">₹</span>
+          <span class="price-amount" style="background: linear-gradient(135deg, #10b981, #059669); -webkit-background-clip: text;">0</span>
+        </div>
+        <div class="price-trial-note">✅ 45 din bilkul FREE — koi card nahi chahiye</div>
+        <div class="pricing-divider"></div>
+        <ul class="pricing-features">
+          <li>Unlimited entries for 45 days</li>
+          <li>Full dashboard access</li>
+          <li>PDF export feature</li>
+          <li>Customer search</li>
+          <li>Cloud sync & backup</li>
+        </ul>
+        <a href="#" class="btn-pricing btn-pricing-outline" onclick="openModal('register'); return false;">
+          Abhi Shuru Karein — Free
+        </a>
+      </div>
+
+      <div class="pricing-card featured">
+        <div class="pricing-badge">⚡ Most Popular</div>
+        <div class="pricing-name">Pro Monthly</div>
+        <div class="pricing-desc">Trial ke baad — poori power, full access.</div>
+        <div class="pricing-price">
+          <span class="price-currency">₹</span>
+          <span class="price-amount">89</span>
+          <span class="price-period">/month</span>
+        </div>
+        <div class="price-trial-note">🎁 45 din free, phir sirf ₹89/month</div>
+        <div class="pricing-divider"></div>
+        <ul class="pricing-features">
+          <li>Sab kuch Free Trial mein hai +</li>
+          <li>Priority customer support</li>
+          <li>Unlimited records forever</li>
+          <li>Advanced PDF reports</li>
+          <li>Multi-device access</li>
+          <li>Data never deleted</li>
+        </ul>
+        <a href="https://razorpay.me/@tusharratansukh" target="_blank" class="btn-pricing btn-pricing-primary">
+          💳 ₹89/month — Pay Now
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ TERMS & CONDITIONS ══ -->
+  <section class="terms" id="terms">
+    <div class="section-label">Legal</div>
+    <h2 class="section-title">Terms & Conditions</h2>
+
+    <div class="terms-grid">
+      <div class="terms-block">
+        <h4>📋 Service Terms</h4>
+        <ol>
+          <li>Vasoolify ek cloud-based EMI collection management software hai jo individual agents aur businesses ke liye designed hai.</li>
+          <li>Free trial period 45 calendar days ka hai, registration date se start hota hai.</li>
+          <li>Trial khatam hone ke baad service use karne ke liye ₹89/month ka subscription lena hoga.</li>
+          <li>Payment complete hone ke baad 24 ghante mein account activate kar diya jaayega.</li>
+          <li>Subscription manually renew karna hoga — auto-debit nahi hota.</li>
+          <li>Account band karne par aapka data 30 din tak secure rahega.</li>
+        </ol>
+      </div>
+      <div class="terms-block">
+        <h4>🔐 Data & Privacy</h4>
+        <ol>
+          <li>Aapka data Supabase encrypted cloud par store hota hai — sirf aap access kar sakte hain.</li>
+          <li>Vasoolify aapka customer data kisi third party ke saath share nahi karta.</li>
+          <li>Aap kabhi bhi apna account aur data delete kar sakte hain.</li>
+          <li>Har user ka data completely alag aur isolated hota hai.</li>
+        </ol>
+        <h4 style="margin-top: 24px;">⚠️ Disclaimer</h4>
+        <ul>
+          <li>Yeh software sirf data management ke liye hai — financial advice nahi deta.</li>
+          <li>Users apne data ki accuracy ke liye khud zimmedaar hain.</li>
+          <li>Internet connection required hai app use karne ke liye.</li>
+          <li>Service interruption ki sthiti mein hum 100% uptime ki guarantee nahi dete.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ CONTACT ══ -->
+  <section class="contact" id="contact">
+    <div class="section-label">Support</div>
+    <h2 class="section-title">Koi sawaal? Humse baat karein.</h2>
+    <p class="section-sub" style="margin: 12px auto 0;">Payment ke baad ya kisi bhi problem ke liye — hum 24 ghante mein reply karte hain.</p>
+
+    <div class="contact-card">
+      <p style="color: var(--muted2); font-size: 14px; font-weight: 300; margin-bottom: 4px;">
+        Payment ka screenshot ya transaction ID neeche diye contacts par bhejein — aapka account jald activate ho jaayega.
+      </p>
+      <div class="contact-items">
+        <a href="mailto:formsmartsystem@gmail.com" class="contact-item">
+          <span class="contact-icon">✉️</span>
+          formsmartsystem@gmail.com
+        </a>
+        <a href="https://wa.me/919639854537" target="_blank" class="contact-item">
+          <span class="contact-icon">💬</span>
+          +91 96398 54537
+        </a>
+        <a href="tel:+919639854537" class="contact-item">
+          <span class="contact-icon">📞</span>
+          Call Support
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ FOOTER ══ -->
+  <footer>
+    <div class="footer-logo">Vasoolify</div>
+    <div class="footer-copy">© 2026 Vasoolify. All rights reserved. | Made with ❤️ for Indian collection agents.</div>
+    <div style="font-size: 12px; color: var(--muted);">
+      <a href="#terms" style="color: var(--muted2); text-decoration: none;">Terms</a> &nbsp;·&nbsp;
+      <a href="#contact" style="color: var(--muted2); text-decoration: none;">Support</a>
+    </div>
+  </footer>
+
+  <!-- ══ LOGIN / REGISTER MODAL ══ -->
+  <div class="modal-overlay" id="authModal" onclick="handleOverlayClick(event)">
+    <div class="modal-box">
+      <button class="modal-close" onclick="closeModal()">✕</button>
+      <div class="modal-logo">Vasoolify</div>
+      <div class="modal-tagline">Smart Collection Management</div>
+
+      <div class="modal-tabs">
+        <button class="modal-tab active" id="tab-login" onclick="switchModalTab('login')">Login</button>
+        <button class="modal-tab" id="tab-register" onclick="switchModalTab('register')">Register</button>
+        <button class="modal-tab" id="tab-forgot" onclick="switchModalTab('forgot')">Forgot PIN</button>
+      </div>
+
+      <div id="modalAlert" class="modal-alert"></div>
+
+      <!-- LOGIN FORM -->
+      <div id="form-login">
+        <div class="form-field">
+          <label>Email Address</label>
+          <input type="email" id="m-loginEmail" placeholder="aapka@email.com">
+        </div>
+        <div class="form-field">
+          <label>6-Digit PIN</label>
+          <input type="password" id="m-loginPin" placeholder="••••••" oninput="if(this.value.length>6)this.value=this.value.slice(0,6)">
+        </div>
+        <button class="btn-modal-submit" onclick="doLogin()">🔐 Secure Login</button>
+        <p class="modal-footer-note">
+          Naya account? <a href="#" onclick="switchModalTab('register'); return false;">Register karein →</a>
         </p>
       </div>
-      <button onclick="logoutUser()" class="btn btn-outline-danger btn-sm fw-bold px-3">Sign Out</button>
-    </div>
 
-    <div class="container my-4">
-      <div class="row g-3 mb-4">
-        <div class="col-md-4">
-          <div class="card metric-card p-3 border-start border-primary">
-            <div class="text-muted small text-uppercase fw-bold">Total Paid Collection</div>
-            <div class="h3 mb-0 fw-bold text-primary" id="metricToday">₹0.00</div>
-          </div>
+      <!-- REGISTER FORM -->
+      <div id="form-register" style="display:none">
+        <div class="form-field">
+          <label>Business / Your Name</label>
+          <input type="text" id="m-regName" placeholder="TUSHAR SUKH" style="text-transform:uppercase">
         </div>
-        <div class="col-md-4">
-          <div class="card metric-card p-3 border-start border-success">
-            <div class="text-muted small text-uppercase fw-bold">Total Entries</div>
-            <div class="h3 mb-0 fw-bold text-success" id="metricCount">0 Records</div>
-          </div>
+        <div class="form-field">
+          <label>Email Address</label>
+          <input type="email" id="m-regEmail" placeholder="aapka@email.com">
         </div>
-        <div class="col-md-4">
-          <div class="card metric-card p-3 border-start border-warning">
-            <div class="text-muted small text-uppercase fw-bold">Remaining Balance</div>
-            <div class="h3 mb-0 fw-bold text-warning" id="metricPending">₹0.00</div>
-          </div>
+        <div class="form-field">
+          <label>Mobile Number</label>
+          <input type="number" id="m-regMobile" placeholder="10-digit mobile" oninput="if(this.value.length>10)this.value=this.value.slice(0,10)">
         </div>
+        <div class="form-field">
+          <label>Set 6-Digit PIN</label>
+          <input type="password" id="m-regPin" placeholder="e.g. 123456" oninput="if(this.value.length>6)this.value=this.value.slice(0,6)">
+        </div>
+        <button class="btn-modal-submit" style="background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 4px 20px rgba(16,185,129,0.3);" onclick="doRegister()">
+          🚀 45-Din Free Trial Shuru Karein
+        </button>
+        <p class="modal-footer-note">
+          Already registered? <a href="#" onclick="switchModalTab('login'); return false;">Login karein →</a>
+        </p>
       </div>
 
-      <div class="card p-4 mb-4">
-        <h4 class="mb-3 text-primary fw-bold border-bottom border-secondary pb-2">➕ New Collection Data Input Matrix</h4>
-        <form id="collectionForm" onsubmit="handleCollectionSubmit(event)">
-          <div class="row g-3">
-            <div class="col-md-4"><label class="form-label required">Customer Name</label><input type="text" id="colCustName" class="form-control" required placeholder="CUSTOMER NAME" style="text-transform: uppercase;"></div>
-            <div class="col-md-2"><label class="form-label required">Relation Type</label><select id="colRelationType" class="form-select"><option value="S/o">S/o</option><option value="W/o">W/o</option><option value="D/o">D/o</option></select></div>
-            <div class="col-md-3"><label class="form-label required">Relation Name</label><input type="text" id="colRelationName" class="form-control" required placeholder="FATHER/HUSBAND NAME" style="text-transform: uppercase;"></div>
-            <div class="col-md-3"><label class="form-label required">Customer Mobile No</label><input type="number" id="colCustMobile" class="form-control" oninput="if(this.value.length > 10) this.value = this.value.slice(0,10);" required placeholder="10 Digit Mobile"></div>
-            <div class="col-md-3"><label class="form-label required">EMI Amount (₹)</label><input type="number" id="colEmiAmount" class="form-control" required placeholder="0" min="0" oninput="calculateBalance()"></div>
-            <div class="col-md-3"><label class="form-label required">Amount Paid (₹)</label><input type="number" id="colAmountPaid" class="form-control" required placeholder="0" min="0" oninput="calculateBalance()"></div>
-            <div class="col-md-3"><label class="form-label">Balance Amount (₹)</label><input type="number" id="colBalanceAmount" class="form-control bg-dark text-warning fw-bold" readonly value="0"></div>
-            <div class="col-md-3"><label class="form-label required">Payment Mode</label><select id="colMode" class="form-select"><option value="Cash">Cash</option><option value="UPI">UPI</option><option value="Others">Others</option></select></div>
-            <div class="col-md-4"><label class="form-label required">Receipt Type</label><select id="colReceiptType" class="form-select"><option value="Advance">Advance</option><option value="Current Month">Current Month</option><option value="Overdue">Overdue</option><option value="Funding">Funding</option><option value="Penalty">Penalty</option><option value="Others">Others</option></select></div>
-            <div class="col-md-8"><label class="form-label">Remark</label><input type="text" id="colRemark" class="form-control" placeholder="Optional collection remarks"></div>
-            <div class="col-md-12 d-flex justify-content-end mt-4"><button type="submit" class="btn btn-success px-5 py-2 fw-bold">💾 Save Entry</button></div>
-          </div>
-        </form>
-      </div>
-
-      <!-- ================================================================
-           NEW: CUSTOMER SEARCH CARD
-           -- Mobile No ya Customer Name se search karo
-           -- Results table mein dikhenge aur PDF download hogi
-      ================================================================ -->
-      <div class="card p-4 mb-4">
-        <h4 class="mb-3 text-warning fw-bold border-bottom border-secondary pb-2">🔍 Customer Search</h4>
-        <div class="row g-3 align-items-end">
-          <div class="col-md-4">
-            <label class="form-label">Search by Customer Name</label>
-            <input type="text" id="searchName" class="form-control" placeholder="Customer naam likhein..."
-              oninput="searchRecords()">
-          </div>
-          <div class="col-md-4">
-            <label class="form-label">Search by Mobile No</label>
-            <input type="number" id="searchMobile" class="form-control" placeholder="Mobile number likhein..."
-              oninput="searchRecords()">
-          </div>
-          <div class="col-md-2">
-            <button onclick="clearSearch()" class="btn btn-secondary w-100 fw-bold">🔄 Clear</button>
-          </div>
-          <div class="col-md-2">
-            <button onclick="exportSearchPDF()" class="btn btn-danger w-100 fw-bold">📥 PDF Download</button>
-          </div>
+      <!-- FORGOT PIN FORM -->
+      <div id="form-forgot" style="display:none">
+        <p style="font-size:13px; color:var(--muted2); margin-bottom:16px; font-weight:300;">
+          Apna registered email daalo — reset link mil jaayega.
+        </p>
+        <div class="form-field">
+          <label>Registered Email</label>
+          <input type="email" id="m-forgotEmail" placeholder="aapka@email.com">
         </div>
-        <!-- Search results summary -->
-        <div id="searchSummary" class="mt-3 d-none">
-          <div class="alert alert-info mb-2 py-2 small fw-bold" id="searchResultInfo"></div>
-          <div class="table-responsive">
-            <table class="table table-dark table-hover border border-secondary mb-0">
-              <thead>
-                <tr>
-                  <th>Collected At</th><th>Customer Name</th><th>Relation</th><th>Mobile</th>
-                  <th>EMI (₹)</th><th>Paid (₹)</th><th>Balance (₹)</th><th>Mode</th><th>Receipt Type</th><th>Remark</th>
-                </tr>
-              </thead>
-              <tbody id="searchTableBody"></tbody>
-            </table>
-          </div>
-          <!-- Search result totals -->
-          <div class="row g-2 mt-2">
-            <div class="col-md-4">
-              <div class="card p-2 border-start border-primary">
-                <div class="small text-muted">Total Paid</div>
-                <div class="fw-bold text-primary" id="searchTotalPaid">₹0.00</div>
-              </div>
-            </div>
-            <div class="col-md-4">
-              <div class="card p-2 border-start border-danger">
-                <div class="small text-muted">Total Balance</div>
-                <div class="fw-bold text-danger" id="searchTotalBalance">₹0.00</div>
-              </div>
-            </div>
-            <div class="col-md-4">
-              <div class="card p-2 border-start border-success">
-                <div class="small text-muted">Total Records</div>
-                <div class="fw-bold text-success" id="searchTotalCount">0</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card p-4">
-        <div class="d-flex flex-wrap justify-content-between align-items-center border-bottom border-secondary pb-3 mb-3">
-          <h4 class="text-info fw-bold m-0">📋 Real-Time Collection Ledger Log</h4>
-          <div class="d-flex gap-2 mt-2 mt-md-0">
-            <input type="date" id="filterDate" class="form-control form-control-sm" onchange="filterLedgerRecords()">
-            <select id="filterMonth" class="form-select form-select-sm" onchange="filterLedgerRecords()">
-              <option value="">-- All Months --</option>
-              <option value="01">January</option><option value="02">February</option><option value="03">March</option>
-              <option value="04">April</option><option value="05">May</option><option value="06">June</option>
-              <option value="07">July</option><option value="08">August</option><option value="09">September</option>
-              <option value="10">October</option><option value="11">November</option><option value="12">December</option>
-            </select>
-            <select id="filterReceiptType" class="form-select form-select-sm" onchange="filterLedgerRecords()">
-              <option value="">-- All Receipts --</option>
-              <option value="Advance">Advance</option><option value="Current Month">Current Month</option>
-              <option value="Overdue">Overdue</option><option value="Funding">Funding</option>
-              <option value="Penalty">Penalty</option><option value="Others">Others</option>
-            </select>
-            <button onclick="exportToPDF()" class="btn btn-danger btn-sm fw-bold px-3">📥 Export PDF</button>
-          </div>
-        </div>
-        <div class="table-responsive">
-          <table class="table table-dark table-hover border border-secondary mb-0" id="ledgerTable">
-            <thead>
-              <tr>
-                <th>Collected At</th><th>Customer Name</th><th>Relation</th><th>Mobile</th>
-                <th>EMI (₹)</th><th>Paid (₹)</th><th>Balance (₹)</th><th>Mode</th><th>Receipt Type</th><th>Remark</th>
-              </tr>
-            </thead>
-            <tbody id="collectionTableBody">
-              <tr><td colspan="10" class="text-center text-muted py-4">Loading cloud workspace data...</td></tr>
-            </tbody>
-          </table>
-        </div>
+        <button class="btn-modal-submit" style="background: linear-gradient(135deg, #f59e0b, #d97706); box-shadow: 0 4px 20px rgba(245,158,11,0.3);" onclick="doForgot()">
+          📧 Reset Link Bhejein
+        </button>
+        <p class="modal-footer-note">
+          Yaad aa gaya? <a href="#" onclick="switchModalTab('login'); return false;">Login karein →</a>
+        </p>
       </div>
     </div>
   </div>
 
-  <div id="loading" class="position-fixed top-50 start-50 translate-middle d-none bg-dark text-white p-3 rounded-3" style="z-index: 9999;">Processing Secure Request...</div>
-
+  <!-- Supabase SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
-    const SUPABASE_URL = "https://efnrjifrfdhwzlpcqdbp.supabase.co";
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmbnJqaWZyZmRod3pscGNxZGJwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4MDk2MDAsImV4cCI6MjA5NjM4NTYwMH0.f4foYQtbTYXyL63LuvA_S3ilM64UEuRwYYn_qxCTk54";
-    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // ── Supabase config (same as main app) ──
+    const SUPA_URL = "https://efnrjifrfdhwzlpcqdbp.supabase.co";
+    const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmbnJqaWZyZmRod3pscGNxZGJwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4MDk2MDAsImV4cCI6MjA5NjM4NTYwMH0.f4foYQtbTYXyL63LuvA_S3ilM64UEuRwYYn_qxCTk54";
+    const sb = window.supabase.createClient(SUPA_URL, SUPA_KEY);
 
-    // ============================================================
-    // NEW CONSTANTS: Trial configuration
-    // -- Sirf yahan change karo agar trial period badlana ho
-    // ============================================================
-    const TRIAL_DAYS = 45;              // 45 din ka free trial
-    const TRIAL_WARNING_DAYS = 7;       // Last 7 din mein warning banner dikhega
-    const RAZORPAY_LINK = "https://razorpay.me/@tusharratansukh"; // Payment link
+    // Main app URL — login hone ke baad redirect hoga
+    const APP_URL = "https://tusharsukh2026.github.io/Collection-Pro/app.html";
 
-    let cachedRecords = [];
-    let activeProfileInfo = null;
-    let currentUserSession = null;
-    // FIX PDF DATE BUG: Ab globally track hoga ki table mein abhi kaunse records hain
-    // (filter/search ke baad bhi) — exportToPDF() DOM ki jagah yahi use karega
-    let currentFilteredRecords = null;
-
-    // ============================================================
-    // PAGE LOAD: Reset token check + normal session check
-    // ============================================================
-    window.onload = async function() {
-      // Pehle URL mein reset token check karo (Forgot PIN flow)
-      const hashParams = new URLSearchParams(window.location.hash.replace('#', '?').slice(1));
-      const accessToken = hashParams.get('access_token');
-      const tokenType = hashParams.get('type');
-
-      if (accessToken && tokenType === 'recovery') {
-        const { error } = await supabaseClient.auth.setSession({
-          access_token: accessToken,
-          refresh_token: hashParams.get('refresh_token') || ''
-        });
-        if (!error) {
-          showScreen('auth');
-          switchAuthTab('reset');
-          showAlert('auth', '🔐 Reset link verified! Naya 6-digit PIN set karein.', 'show', 'success');
-          return;
-        }
-      }
-
-      // Normal login session check
-      toggleLoader(true);
-      const { data: { session } } = await supabaseClient.auth.getSession();
-      if (session) {
-        await loadUserProfileAndDashboard(session);
-      } else {
-        showScreen('auth');
-      }
-      toggleLoader(false);
-    };
-
-    function toggleLoader(show) {
-      document.getElementById('loading').classList.toggle('d-none', !show);
+    // ── Modal helpers ──
+    function openModal(tab) {
+      document.getElementById('authModal').classList.add('open');
+      switchModalTab(tab || 'login');
+      clearModalAlert();
     }
 
-    function showScreen(screenType) {
-      document.getElementById('authScreen').style.display = screenType === 'auth' ? 'block' : 'none';
-      document.getElementById('mainDashboard').style.display = screenType === 'dashboard' ? 'block' : 'none';
+    function closeModal() {
+      document.getElementById('authModal').classList.remove('open');
     }
 
-    function calculateBalance() {
-      const emi = parseFloat(document.getElementById('colEmiAmount').value) || 0;
-      const paid = parseFloat(document.getElementById('colAmountPaid').value) || 0;
-      document.getElementById('colBalanceAmount').value = (emi - paid >= 0) ? (emi - paid) : 0;
+    function handleOverlayClick(e) {
+      if (e.target === document.getElementById('authModal')) closeModal();
     }
 
-    // ============================================================
-    // NEW FUNCTION: checkTrialStatus
-    // -- Profile load hone ke baad yeh function call hota hai
-    // -- Trial days calculate karta hai aur sahi action leta hai:
-    //    1. ACTIVE user → kuch nahi, seedha dashboard
-    //    2. TRIAL user → din calculate karo:
-    //       a. 45 din se zyada → expired overlay dikhao
-    //       b. Last 7 din → warning banner dikhao
-    //       c. Normal → sirf days remaining dikhao
-    // ============================================================
-    function checkTrialStatus(profile) {
-      // ACTIVE subscription wale users ko koi check nahi
-      if (profile.subscription_status === 'ACTIVE') {
-        document.getElementById('statusDisplay').className = 'badge bg-success';
-        document.getElementById('statusDisplay').innerText = 'ACTIVE';
-        document.getElementById('trialDaysDisplay').innerText = '✅ Premium Member';
-        return; // Koi restriction nahi
-      }
-
-      // Trial user ke liye din calculate karo
-      // trial_start_date profile mein store hai (Supabase column)
-      // Agar column nahi hai toh created_at use karo fallback ke liye
-      const startDateRaw = profile.trial_start_date || profile.created_at;
-
-      if (!startDateRaw) {
-        // Date nahi mili — expired treat karo (safe default)
-        showTrialExpiredOverlay();
-        return;
-      }
-
-      const startDate = new Date(startDateRaw);
-      const today = new Date();
-
-      // Milliseconds se days mein convert karo
-      const msPerDay = 1000 * 60 * 60 * 24;
-      const daysUsed = Math.floor((today - startDate) / msPerDay);
-      const daysLeft = TRIAL_DAYS - daysUsed;
-
-      console.log(`Trial: ${daysUsed} din use hue, ${daysLeft} din bache`);
-
-      if (daysLeft <= 0) {
-        // ---- TRIAL EXPIRED: Overlay dikhao, dashboard block karo ----
-        showTrialExpiredOverlay();
-
-      } else if (daysLeft <= TRIAL_WARNING_DAYS) {
-        // ---- WARNING ZONE: Last 7 din — banner dikhao ----
-        const banner = document.getElementById('trialWarningBanner');
-        document.getElementById('trialWarningText').innerText =
-          `⚠️ Aapka Trial sirf ${daysLeft} din mein khatam ho raha hai! Abhi payment karein.`;
-        banner.classList.add('show');
-        document.getElementById('trialDaysDisplay').innerText = `Trial: ${daysLeft} din bache`;
-        document.getElementById('statusDisplay').className = 'badge bg-danger';
-
-      } else {
-        // ---- NORMAL TRIAL: Sirf din remaining dikhao ----
-        document.getElementById('trialDaysDisplay').innerText = `Trial: ${daysLeft} din bache`;
-        document.getElementById('statusDisplay').className = 'badge bg-warning text-dark';
-        document.getElementById('statusDisplay').innerText = 'TRIAL';
-      }
-    }
-
-    // ============================================================
-    // NEW FUNCTION: showTrialExpiredOverlay
-    // -- Poori screen cover karta hai, dashboard disable ho jaata hai
-    // ============================================================
-    function showTrialExpiredOverlay() {
-      document.getElementById('trialExpiredOverlay').classList.add('show');
-    }
-
-    // ============================================================
-    // REGISTRATION — trial_start_date bhi save karo
-    // ============================================================
-    async function handleProfileRegister(e) {
-      e.preventDefault();
-      toggleLoader(true);
-      showAlert('auth', '', 'hide');
-
-      const name = document.getElementById('regName').value.toUpperCase();
-      const email = document.getElementById('regEmail').value;
-      const mobile = document.getElementById('regMobile').value;
-      const pin = document.getElementById('regPin').value;
-
-      if (mobile.length !== 10) { toggleLoader(false); return showAlert('auth', 'Mobile number strictly 10 digits ka hona chahiye!'); }
-      if (pin.length !== 6) { toggleLoader(false); return showAlert('auth', 'PIN strictly 6 digits ka banayein!'); }
-
-      const { data: authData, error: authError } = await supabaseClient.auth.signUp({
-        email, password: `secure_pin_${pin}`,
-        options: { data: { user_name: name, mobile_no: mobile, pin } }
+    function switchModalTab(tab) {
+      ['login','register','forgot'].forEach(t => {
+        document.getElementById('form-' + t).style.display = t === tab ? 'block' : 'none';
+        document.getElementById('tab-' + t).classList.toggle('active', t === tab);
       });
-
-      if (authError) {
-        showAlert('auth', "Registration Error: " + authError.message);
-      } else if (authData.user) {
-        // FIX: Registration ke baad manual upsert with trial_start_date
-        // trial_start_date = aaj ki date — 45 din isi se count honge
-        const { error: profileError } = await supabaseClient.from('profiles').upsert([{
-          id: authData.user.id,
-          user_name: name,
-          mobile_no: mobile,
-          pin: pin,
-          subscription_status: 'TRIAL',
-          trial_start_date: new Date().toISOString()  // NEW: Trial shuru aaj se
-        }], { onConflict: 'id' });
-
-        if (profileError) console.warn("Profile upsert warning:", profileError.message);
-
-        showAlert('auth', `✅ Registration Successful! Aapka ${TRIAL_DAYS}-din ka Free Trial shuru ho gaya. Login karein.`, 'show', 'success');
-        switchAuthTab('login');
-      }
-      toggleLoader(false);
+      clearModalAlert();
     }
 
-    // ============================================================
-    // LOGIN
-    // ============================================================
-    async function handleEmailPinLogin(e) {
-      e.preventDefault();
-      toggleLoader(true);
-      showAlert('auth', '', 'hide');
+    function showModalAlert(msg, type) {
+      const el = document.getElementById('modalAlert');
+      el.className = 'modal-alert ' + type;
+      el.textContent = msg;
+    }
 
-      const email = document.getElementById('loginEmail').value;
-      const pin = document.getElementById('loginPin').value;
+    function clearModalAlert() {
+      const el = document.getElementById('modalAlert');
+      el.className = 'modal-alert';
+      el.textContent = '';
+    }
 
-      const { data, error } = await supabaseClient.auth.signInWithPassword({
+    // ── LOGIN ──
+    async function doLogin() {
+      const email = document.getElementById('m-loginEmail').value.trim();
+      const pin = document.getElementById('m-loginPin').value.trim();
+      if (!email || pin.length !== 6) return showModalAlert('Email aur 6-digit PIN zaroori hai.', 'error');
+
+      showModalAlert('Logging in...', 'success');
+      const { data, error } = await sb.auth.signInWithPassword({
         email, password: `secure_pin_${pin}`
       });
 
       if (error) {
-        showAlert('auth', 'Login Failed: Invalid Email or 6-digit Security PIN!');
-        toggleLoader(false);
-      } else if (data.session) {
-        await loadUserProfileAndDashboard(data.session);
+        showModalAlert('Login failed: Invalid email ya PIN!', 'error');
+      } else {
+        showModalAlert('✅ Login successful! Redirecting...', 'success');
+        setTimeout(() => { window.location.href = APP_URL; }, 1000);
       }
     }
 
-    // ============================================================
-    // PROFILE LOAD WITH RETRY + TRIAL CHECK
-    // ============================================================
-    async function loadUserProfileAndDashboard(session) {
-      currentUserSession = session;
+    // ── REGISTER ──
+    async function doRegister() {
+      const name   = document.getElementById('m-regName').value.trim().toUpperCase();
+      const email  = document.getElementById('m-regEmail').value.trim();
+      const mobile = document.getElementById('m-regMobile').value.trim();
+      const pin    = document.getElementById('m-regPin').value.trim();
 
-      try {
-        let profile = null;
-        const MAX_RETRY = 3;
-        const RETRY_DELAY_MS = 1500;
+      if (!name) return showModalAlert('Naam zaroori hai.', 'error');
+      if (!email) return showModalAlert('Email zaroori hai.', 'error');
+      if (mobile.length !== 10) return showModalAlert('Mobile exactly 10 digits ka hona chahiye.', 'error');
+      if (pin.length !== 6) return showModalAlert('PIN exactly 6 digits ka hona chahiye.', 'error');
 
-        for (let attempt = 1; attempt <= MAX_RETRY; attempt++) {
-          const { data: profiles, error } = await supabaseClient
-            .from('profiles').select('*').eq('id', session.user.id);
+      showModalAlert('Registering...', 'success');
 
-          if (!error && profiles && profiles.length > 0) {
-            profile = profiles[0];
-            break;
-          }
-          if (attempt < MAX_RETRY) await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
-        }
+      const { data: authData, error: authError } = await sb.auth.signUp({
+        email, password: `secure_pin_${pin}`,
+        options: { data: { user_name: name, mobile_no: mobile, pin } }
+      });
 
-        // Fallback: auth metadata se profile banao
-        if (!profile) {
-          const meta = session.user.user_metadata || {};
-          profile = {
-            id: session.user.id,
-            user_name: meta.user_name || session.user.email,
-            mobile_no: meta.mobile_no || 'N/A',
-            subscription_status: 'TRIAL',
-            trial_start_date: session.user.created_at  // Auth user created_at fallback
-          };
-          // Background mein save karo
-          supabaseClient.from('profiles').upsert([{
-            ...profile, pin: meta.pin || ''
-          }], { onConflict: 'id' }).then(({ error: e }) => {
-            if (e) console.warn("Fallback upsert failed:", e.message);
-          });
-        }
+      if (authError) return showModalAlert('Error: ' + authError.message, 'error');
 
-        activeProfileInfo = profile;
-        document.getElementById('userDisplay').innerText = profile.user_name;
-        document.getElementById('statusDisplay').innerText = profile.subscription_status;
+      if (authData.user) {
+        await sb.from('profiles').upsert([{
+          id: authData.user.id,
+          user_name: name,
+          mobile_no: mobile,
+          pin,
+          subscription_status: 'TRIAL',
+          trial_start_date: new Date().toISOString()
+        }], { onConflict: 'id' });
 
-        showScreen('dashboard');
-
-        // NEW: Trial status check — expired? warning? active?
-        checkTrialStatus(profile);
-
-        await fetchCloudRecords();
-
-      } catch (err) {
-        console.error("Dashboard load error:", err.message);
-        showAlert('auth', 'Session load mein problem. Dobara login karein.');
-        showScreen('auth');
-      }
-      toggleLoader(false);
-    }
-
-    // ============================================================
-    // CLOUD RECORDS FETCH
-    // ============================================================
-    async function fetchCloudRecords() {
-      if (!currentUserSession) return;
-      const { data, error } = await supabaseClient
-        .from('collections').select('*').order('collected_at', { ascending: false });
-      if (!error && data) {
-        cachedRecords = data;
-        renderLedger(cachedRecords);
-        calculateTopMetrics(cachedRecords);
+        showModalAlert('🎉 Registration successful! 45-din trial shuru. Login karein.', 'success');
+        setTimeout(() => switchModalTab('login'), 2500);
       }
     }
 
-    // ============================================================
-    // COLLECTION SUBMIT
-    // ============================================================
-    async function handleCollectionSubmit(e) {
-      e.preventDefault();
-      if (!currentUserSession || !activeProfileInfo) return alert("Authorization scope missing.");
+    // ── FORGOT PIN ──
+    async function doForgot() {
+      const email = document.getElementById('m-forgotEmail').value.trim();
+      if (!email) return showModalAlert('Email address zaroori hai.', 'error');
 
-      const mobile = document.getElementById('colCustMobile').value;
-      if (mobile.length !== 10) return alert("Customer mobile number must be exactly 10 digits!");
+      showModalAlert('Sending reset link...', 'success');
+      const { error } = await sb.auth.resetPasswordForEmail(email, {
+        redirectTo: APP_URL
+      });
 
-      toggleLoader(true);
-      const newEntry = {
-        user_id: currentUserSession.user.id,
-        customer_name: document.getElementById('colCustName').value.toUpperCase(),
-        relation_type: document.getElementById('colRelationType').value,
-        relation_name: document.getElementById('colRelationName').value.toUpperCase(),
-        cust_mobile: mobile,
-        emi_amount: parseFloat(document.getElementById('colEmiAmount').value) || 0,
-        amount_paid: parseFloat(document.getElementById('colAmountPaid').value) || 0,
-        balance_amount: parseFloat(document.getElementById('colBalanceAmount').value) || 0,
-        mode: document.getElementById('colMode').value,
-        receipt_type: document.getElementById('colReceiptType').value,
-        remark: document.getElementById('colRemark').value || "-",
-        entered_by: activeProfileInfo.user_name,
-        funding_status: document.getElementById('colReceiptType').value === 'Funding' ? 'Active' : 'N/A',
-        collected_at: new Date().toISOString()
-      };
-
-      const { error } = await supabaseClient.from('collections').insert([newEntry]);
       if (error) {
-        alert("Database Error: " + error.message);
+        showModalAlert('Error: ' + error.message, 'error');
       } else {
-        document.getElementById('collectionForm').reset();
-        document.getElementById('colBalanceAmount').value = "0";
-        await fetchCloudRecords();
+        showModalAlert('✅ Reset link bhej diya! Inbox check karein (spam bhi).', 'success');
       }
-      toggleLoader(false);
     }
 
-    function calculateTopMetrics(records) {
-      let totalPaid = 0, totalBalance = 0;
-      records.forEach(r => {
-        totalPaid += Number(r.amount_paid) || 0;
-        totalBalance += Number(r.balance_amount) || 0;
-      });
-      document.getElementById('metricToday').innerText = "₹" + totalPaid.toFixed(2);
-      document.getElementById('metricCount').innerText = records.length + " Records";
-      document.getElementById('metricPending').innerText = "₹" + totalBalance.toFixed(2);
-    }
-
-    function renderLedger(recordsList) {
-      const tbody = document.getElementById('collectionTableBody');
-      tbody.innerHTML = "";
-      if (recordsList.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="10" class="text-center text-muted py-4">No enterprise metrics captured yet.</td></tr>`;
-        return;
-      }
-      recordsList.forEach(r => {
-        tbody.innerHTML += `<tr>
-          <td>${new Date(r.collected_at).toLocaleString()}</td>
-          <td class="text-warning fw-bold">${r.customer_name}</td>
-          <td><small>${r.relation_type} ${r.relation_name}</small></td>
-          <td>${r.cust_mobile}</td>
-          <td>₹${Number(r.emi_amount).toFixed(2)}</td>
-          <td class="text-success fw-bold">₹${Number(r.amount_paid).toFixed(2)}</td>
-          <td class="text-danger fw-bold">₹${Number(r.balance_amount).toFixed(2)}</td>
-          <td><span class="badge bg-secondary">${r.mode}</span></td>
-          <td><span class="badge ${r.receipt_type === 'Funding' ? 'bg-primary' : 'bg-info text-dark'}">${r.receipt_type}</span></td>
-          <td class="small text-muted">${r.remark}</td>
-        </tr>`;
-      });
-    }
-
-    function filterLedgerRecords() {
-      const targetDate = document.getElementById('filterDate').value;
-      const targetMonth = document.getElementById('filterMonth').value;
-      const targetType = document.getElementById('filterReceiptType').value;
-      let filtered = cachedRecords;
-      if (targetDate) filtered = filtered.filter(r => r.collected_at.startsWith(targetDate));
-      if (targetMonth) filtered = filtered.filter(r => r.collected_at.substring(5, 7) === targetMonth);
-      if (targetType) filtered = filtered.filter(r => r.receipt_type === targetType);
-      // FIX PDF DATE BUG: Filter ke baad jo records hain unhe globally save karo
-      // taaki exportToPDF() sahi data use kare, DOM se nahi
-      currentFilteredRecords = filtered;
-      renderLedger(filtered);
-      calculateTopMetrics(filtered);
-    }
-
-    function exportToPDF() {
-      // ================================================================
-      // FIX: PDF ab DOM (HTML table) se nahi, seedha cachedRecords
-      // array se data leta hai — jisme actual database ka data hota hai.
-      //
-      // Purana code problem:
-      //   - DOM se innerText read karta tha — browser locale ke hisaab
-      //     se date format alag alag hoti thi
-      //   - Agar filter laga ho toh sirf filtered rows export hoti thin
-      //   - "Collected At" column mein toLocaleString() ki wajah se
-      //     date kabhi kabhi galat ya inconsistent dikhti thi
-      //
-      // Naya code fix:
-      //   - cachedRecords (Supabase ka raw data) seedha use karo
-      //   - Date format khud manually banao — DD/MM/YYYY HH:MM format
-      //   - PDF header mein report generation time bhi likho
-      //   - Filtered records export karna ho toh filterLedgerRecords()
-      //     ke baad jo table mein dikhta hai wahi export hoga — isliye
-      //     hum currentExportData variable use karte hain
-      // ================================================================
-
-      const { jsPDF } = window.jspdf;
-
-      // Export ke liye data — agar filter laga hai toh filtered, warna sab
-      // currentFilteredRecords globally set hoti hai filterLedgerRecords() mein
-      const exportData = (typeof currentFilteredRecords !== 'undefined' && currentFilteredRecords !== null)
-        ? currentFilteredRecords
-        : cachedRecords;
-
-      if (!exportData || exportData.length === 0) {
-        return alert("Export karne ke liye koi records nahi hain!");
-      }
-
-      const doc = new jsPDF('l', 'mm', 'a4');
-      doc.setFont("sans-serif", "bold");
-
-      // ---- PDF Header ----
-      doc.setFontSize(14);
-      doc.text("VASOOLIFY - COLLECTION LEDGER REPORT", 14, 13);
-
-      // Report generate hone ki actual date/time — neeche print hogi
-      doc.setFontSize(8);
-      doc.setFont("sans-serif", "normal");
-      const generatedOn = formatDateForPDF(new Date().toISOString());
-      doc.text(`Report Generated: ${generatedOn}  |  Total Records: ${exportData.length}  |  Operator: ${activeProfileInfo ? activeProfileInfo.user_name : ''}`, 14, 20);
-
-      // ---- Table Rows — cachedRecords se direct map karo ----
-      const tableRows = exportData.map(r => [
-        formatDateForPDF(r.collected_at),          // Consistent date format
-        r.customer_name || '-',
-        `${r.relation_type || ''} ${r.relation_name || ''}`.trim(),
-        r.cust_mobile || '-',
-        `Rs. ${Number(r.emi_amount || 0).toFixed(2)}`,
-        `Rs. ${Number(r.amount_paid || 0).toFixed(2)}`,
-        `Rs. ${Number(r.balance_amount || 0).toFixed(2)}`,
-        r.mode || '-',
-        r.receipt_type || '-',
-        r.remark || '-'
-      ]);
-
-      doc.autoTable({
-        head: [['Collected At', 'Customer Name', 'Relation', 'Mobile', 'EMI', 'Paid', 'Balance', 'Mode', 'Receipt Type', 'Remark']],
-        body: tableRows,
-        startY: 24,
-        theme: 'grid',
-        styles: { fontSize: 7.5 },
-        headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold' }
-      });
-
-      // ---- PDF filename mein bhi sahi aaj ki date ----
-      // Format: Vasoolify_Report_07-06-2026.pdf
-      const today = new Date();
-      const fileDate = `${String(today.getDate()).padStart(2,'0')}-${String(today.getMonth()+1).padStart(2,'0')}-${today.getFullYear()}`;
-      doc.save(`Vasoolify_Report_${fileDate}.pdf`);
-    }
-
-    async function logoutUser() {
-      await supabaseClient.auth.signOut();
-      currentUserSession = null;
-      activeProfileInfo = null;
-      // Overlay hide karo logout par
-      document.getElementById('trialExpiredOverlay').classList.remove('show');
-      showScreen('auth');
-    }
-
-    // ============================================================
-    // FORGOT PIN — Email se reset link bhejo
-    // ============================================================
-    async function handleForgotPin(e) {
-      e.preventDefault();
-      toggleLoader(true);
-      showAlert('auth', '', 'hide');
-      const email = document.getElementById('forgotEmail').value;
-      const currentPageUrl = window.location.href.split('#')[0];
-      const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo: currentPageUrl });
-      if (error) {
-        showAlert('auth', '❌ Error: ' + error.message);
-      } else {
-        showAlert('auth', '✅ Reset link bhej diya! Inbox check karein (spam bhi).', 'show', 'success');
-      }
-      toggleLoader(false);
-    }
-
-    // ============================================================
-    // SET NEW PIN — Reset token ke baad naya PIN save karo
-    // ============================================================
-    async function handleSetNewPin(e) {
-      e.preventDefault();
-      toggleLoader(true);
-      showAlert('auth', '', 'hide');
-      const newPin = document.getElementById('newPin').value;
-      const confirmPin = document.getElementById('confirmPin').value;
-      if (newPin !== confirmPin) { showAlert('auth', 'Dono PIN match nahi kar rahe!'); toggleLoader(false); return; }
-      if (newPin.length !== 6) { showAlert('auth', 'PIN exactly 6 digits ka hona chahiye!'); toggleLoader(false); return; }
-      const { error } = await supabaseClient.auth.updateUser({ password: `secure_pin_${newPin}` });
-      if (error) {
-        showAlert('auth', 'PIN update error: ' + error.message);
-      } else {
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (session) {
-          await supabaseClient.from('profiles').update({ pin: newPin }).eq('id', session.user.id);
-        }
-        showAlert('auth', '🎉 Naya PIN set ho gaya! Login karein.', 'show', 'success');
-        window.history.replaceState(null, '', window.location.pathname);
-        setTimeout(() => switchAuthTab('login'), 2000);
-      }
-      toggleLoader(false);
-    }
-
-
-    // ================================================================
-    // NEW FUNCTION: searchRecords
-    // ----------------------------------------------------------------
-    // Customer Name ya Mobile No se search karta hai cachedRecords mein
-    // Case-insensitive search — partial match bhi kaam karta hai
-    // Dono fields ek saath fill ho sakti hain — AND condition lagti hai
-    // ================================================================
-    let currentSearchResults = []; // Search results globally store karo PDF ke liye
-
-    function searchRecords() {
-      const nameQuery = (document.getElementById('searchName').value || '').trim().toUpperCase();
-      const mobileQuery = (document.getElementById('searchMobile').value || '').trim();
-
-      // Dono empty hain toh results hide karo
-      if (!nameQuery && !mobileQuery) {
-        document.getElementById('searchSummary').classList.add('d-none');
-        currentSearchResults = [];
-        return;
-      }
-
-      // cachedRecords mein se filter karo
-      let results = cachedRecords.filter(r => {
-        const nameMatch = nameQuery
-          ? (r.customer_name || '').toUpperCase().includes(nameQuery)
-          : true;
-        const mobileMatch = mobileQuery
-          ? (r.cust_mobile || '').toString().includes(mobileQuery)
-          : true;
-        return nameMatch && mobileMatch; // Dono conditions satisfy honi chahiye
-      });
-
-      currentSearchResults = results; // PDF ke liye save karo
-
-      // Results table render karo
-      const tbody = document.getElementById('searchTableBody');
-      tbody.innerHTML = '';
-
-      if (results.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10" class="text-center text-warning py-3">Koi record nahi mila is search ke liye.</td></tr>';
-        document.getElementById('searchResultInfo').innerText = 'Koi result nahi mila.';
-      } else {
-        let totalPaid = 0, totalBalance = 0;
-        results.forEach(r => {
-          totalPaid += Number(r.amount_paid) || 0;
-          totalBalance += Number(r.balance_amount) || 0;
-          tbody.innerHTML += `<tr>
-            <td>${formatDateDisplay(r.collected_at)}</td>
-            <td class="text-warning fw-bold">${r.customer_name}</td>
-            <td><small>${r.relation_type} ${r.relation_name}</small></td>
-            <td>${r.cust_mobile}</td>
-            <td>₹${Number(r.emi_amount).toFixed(2)}</td>
-            <td class="text-success fw-bold">₹${Number(r.amount_paid).toFixed(2)}</td>
-            <td class="text-danger fw-bold">₹${Number(r.balance_amount).toFixed(2)}</td>
-            <td><span class="badge bg-secondary">${r.mode}</span></td>
-            <td><span class="badge ${r.receipt_type === 'Funding' ? 'bg-primary' : 'bg-info text-dark'}">${r.receipt_type}</span></td>
-            <td class="small text-muted">${r.remark}</td>
-          </tr>`;
-        });
-        // Summary metrics update karo
-        document.getElementById('searchTotalPaid').innerText = '₹' + totalPaid.toFixed(2);
-        document.getElementById('searchTotalBalance').innerText = '₹' + totalBalance.toFixed(2);
-        document.getElementById('searchTotalCount').innerText = results.length + ' Records';
-        document.getElementById('searchResultInfo').innerText =
-          `🔍 "${nameQuery || mobileQuery}" ke liye ${results.length} record(s) mile.`;
-      }
-
-      document.getElementById('searchSummary').classList.remove('d-none');
-    }
-
-    // ================================================================
-    // NEW FUNCTION: clearSearch
-    // -- Search fields clear karo aur results hide karo
-    // ================================================================
-    function clearSearch() {
-      document.getElementById('searchName').value = '';
-      document.getElementById('searchMobile').value = '';
-      document.getElementById('searchSummary').classList.add('d-none');
-      document.getElementById('searchTableBody').innerHTML = '';
-      currentSearchResults = [];
-    }
-
-    // ================================================================
-    // NEW FUNCTION: exportSearchPDF
-    // -- Search results ki alag PDF banata hai
-    // -- Agar koi search nahi kiya toh alert deta hai
-    // ================================================================
-    function exportSearchPDF() {
-      if (!currentSearchResults || currentSearchResults.length === 0) {
-        return alert("Pehle koi search karein, phir PDF download karein!");
-      }
-
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF('l', 'mm', 'a4');
-
-      // Header
-      doc.setFont("sans-serif", "bold");
-      doc.setFontSize(14);
-      doc.text("VASOOLIFY - CUSTOMER SEARCH REPORT", 14, 13);
-
-      doc.setFontSize(8);
-      doc.setFont("sans-serif", "normal");
-      const nameQ = document.getElementById('searchName').value || '-';
-      const mobQ = document.getElementById('searchMobile').value || '-';
-      const genTime = formatDateForPDF(new Date().toISOString());
-      doc.text(
-        `Search: Name="${nameQ}" | Mobile="${mobQ}" | Records: ${currentSearchResults.length} | Generated: ${genTime}`,
-        14, 20
-      );
-
-      // Table rows
-      const tableRows = currentSearchResults.map(r => [
-        formatDateForPDF(r.collected_at),
-        r.customer_name || '-',
-        `${r.relation_type || ''} ${r.relation_name || ''}`.trim(),
-        r.cust_mobile || '-',
-        `Rs. ${Number(r.emi_amount || 0).toFixed(2)}`,
-        `Rs. ${Number(r.amount_paid || 0).toFixed(2)}`,
-        `Rs. ${Number(r.balance_amount || 0).toFixed(2)}`,
-        r.mode || '-',
-        r.receipt_type || '-',
-        r.remark || '-'
-      ]);
-
-      doc.autoTable({
-        head: [['Collected At', 'Customer Name', 'Relation', 'Mobile', 'EMI', 'Paid', 'Balance', 'Mode', 'Receipt Type', 'Remark']],
-        body: tableRows,
-        startY: 24,
-        theme: 'grid',
-        styles: { fontSize: 7.5 },
-        headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold' }
-      });
-
-      // Filename mein search query bhi add karo
-      const today = new Date();
-      const fileDate = `${String(today.getDate()).padStart(2,'0')}-${String(today.getMonth()+1).padStart(2,'0')}-${today.getFullYear()}`;
-      const safeName = (nameQ !== '-' ? nameQ : mobQ).replace(/[^a-zA-Z0-9]/g, '_').slice(0, 20);
-      doc.save(`Vasoolify_Search_${safeName}_${fileDate}.pdf`);
-    }
-
-    // ================================================================
-    // HELPER: formatDateDisplay — Table mein dikhane ke liye
-    // ================================================================
-    function formatDateDisplay(isoString) {
-      if (!isoString) return '-';
-      const d = new Date(isoString);
-      return d.toLocaleString('en-IN', {
-        day: '2-digit', month: '2-digit', year: 'numeric',
-        hour: '2-digit', minute: '2-digit', hour12: true
-      });
-    }
-
-    // ================================================================
-    // GLOBAL HELPER: formatDateForPDF
-    // -- Yeh function GLOBAL scope mein hai taaki exportToPDF() aur
-    //    exportSearchPDF() dono use kar sakein
-    // -- Input:  ISO string "2026-06-07T10:30:00.000Z"
-    // -- Output: "07/06/2026 10:30"
-    // ================================================================
-    function formatDateForPDF(isoString) {
-      if (!isoString) return '-';
-      const d = new Date(isoString);
-      const dd = String(d.getDate()).padStart(2, '0');
-      const mm = String(d.getMonth() + 1).padStart(2, '0');
-      const yyyy = d.getFullYear();
-      const hh = String(d.getHours()).padStart(2, '0');
-      const min = String(d.getMinutes()).padStart(2, '0');
-      return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
-    }
-
-    function switchAuthTab(tab) {
-      document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none';
-      document.getElementById('registerForm').style.display = tab === 'register' ? 'block' : 'none';
-      document.getElementById('forgotForm').style.display = tab === 'forgot' ? 'block' : 'none';
-      document.getElementById('resetPinForm').style.display = tab === 'reset' ? 'block' : 'none';
-      document.getElementById('tab-login').classList.toggle('active', tab === 'login');
-      document.getElementById('tab-register').classList.toggle('active', tab === 'register');
-      document.getElementById('tab-forgot').classList.toggle('active', tab === 'forgot');
-    }
-
-    function showAlert(type, message, action = 'show', state = 'danger') {
-      const alertBox = document.getElementById(type + 'Alert');
-      if (action === 'hide') return alertBox.classList.add('d-none');
-      alertBox.className = `alert alert-${state}`; alertBox.innerText = message; alertBox.classList.remove('d-none');
-    }
+    // ── ESC key to close modal ──
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeModal();
+    });
   </script>
 </body>
 </html>
