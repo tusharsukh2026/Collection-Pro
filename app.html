@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vasoolify - Secure Collection Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
+  <style>
+    body { background-color: #0f172a; color: #f8fafc; font-family: sans-serif; }
+    .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; color: #f8fafc; }
+    .btn-primary { background-color: #3b82f6; border: none; }
+    .btn-primary:hover { background-color: #2563eb; }
+    .btn-success { background-color: #10b981; border: none; }
+    .btn-success:hover { background-color: #059669; }
+    .header-panel { background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%); color: white; border-bottom: 2px solid #3b82f6; padding: 25px 15px; }
+    .form-control, .form-select { background-color: #0f172a; border: 1px solid #475569; color: #f8fafc; }
+    .form-control:focus, .form-select:focus { background-color: #0f172a; border-color: #3b82f6; color: #f8fafc; box-shadow: none; }
+    .required::after { content: " *"; color: #ef4444; }
+    .nav-tabs .nav-link { color: #94a3b8; border: none; background: none; padding: 10px 20px; }
+    .nav-tabs .nav-link.active { background-color: #1e293b !important; color: #3b82f6 !important; font-weight: bold; }
+    .metric-card { background: #1e293b; border-left: 4px solid #3b82f6; }
+    #authScreen { max-width: 450px; margin: 60px auto; display: block; }
+    #mainDashboard { display: none; }
+
+    /* ============================================================
+       NEW: TRIAL EXPIRED OVERLAY STYLES
+       -- Poore dashboard ko blur karke payment screen dikhata hai
+       -- User kuch bhi use nahi kar sakta jab tak payment nahi karta
+    ============================================================ */
+    #trialExpiredOverlay {
+      display: none; /* JS se show hoga jab trial khatam ho */
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(15, 23, 42, 0.97);
+      z-index: 99999;
+      justify-content: center;
+      align-items: center;
+    }
+    #trialExpiredOverlay.show { display: flex; }
+    .trial-box {
+      background: #1e293b;
+      border: 2px solid #ef4444;
+      border-radius: 16px;
+      padding: 40px 32px;
+      max-width: 480px;
+      width: 90%;
+      text-align: center;
+    }
+    .trial-box .expired-icon { font-size: 56px; margin-bottom: 12px; }
+    .trial-box h3 { color: #ef4444; font-weight: 800; margin-bottom: 8px; }
+    .trial-box p { color: #94a3b8; margin-bottom: 24px; }
+    .pay-btn {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 14px 32px;
+      font-size: 18px;
+      font-weight: 700;
+      width: 100%;
+      cursor: pointer;
+      text-decoration: none;
+      display: block;
+      margin-bottom: 12px;
+      transition: transform 0.1s;
+    }
+    .pay-btn:hover { transform: scale(1.02); color: white; }
+
+    /* NEW: Trial warning banner — dashboard ke top par dikhega */
+    #trialWarningBanner {
+      display: none;
+      background: linear-gradient(90deg, #92400e, #b45309);
+      color: #fef3c7;
+      text-align: center;
+      padding: 10px;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    #trialWarningBanner.show { display: block; }
+  </style>
+</head>
+<body>
+
+  <!-- ============================================================
+       TRIAL EXPIRED FULL-SCREEN OVERLAY
+       -- Jab 45 din poore hote hain, yeh poore screen par aa jaata hai
+       -- Razorpay payment link yahan hai
+  ============================================================ -->
+  <div id="trialExpiredOverlay">
+    <div class="trial-box">
+      <div class="expired-icon">⏰</div>
+      <h3>Free Trial Khatam Ho Gaya!</h3>
+      <p>Aapka <strong>45-din ka Free Trial</strong> expire ho gaya hai.<br>
+        Dashboard use karna jaari rakhne ke liye please payment karein.</p>
+      <div class="alert alert-info text-start mb-3 small">
+        ✅ Payment ke baad apna <strong>Transaction ID / Screenshot</strong> WhatsApp par bhejein — 
+        24 ghante mein aapka account <span class="text-success fw-bold">ACTIVE</span> kar diya jaayega.
+      </div>
+      <!-- RAZORPAY PAYMENT LINK — seedha Razorpay par le jaata hai -->
+      <a href="https://razorpay.me/@tusharratansukh" target="_blank" class="pay-btn">
+        💳 Abhi Payment Karein — Razorpay
+      </a>
+      <button onclick="logoutUser()" class="btn btn-outline-secondary w-100">
+        Sign Out
+      </button>
+    </div>
+  </div>
+
+  <!-- AUTH SCREEN -->
+  <div id="authScreen" class="container card p-4">
+    <h3 class="text-center mb-4 text-primary fw-bold">VASOOLIFY</h3>
+
+    <ul class="nav nav-tabs mb-4 justify-content-center" id="authTabs">
+      <li class="nav-item"><button type="button" id="tab-login" class="nav-link active" onclick="switchAuthTab('login')">PIN Login</button></li>
+      <li class="nav-item"><button type="button" id="tab-register" class="nav-link" onclick="switchAuthTab('register')">New Register</button></li>
+      <li class="nav-item"><button type="button" id="tab-forgot" class="nav-link" onclick="switchAuthTab('forgot')">Forgot PIN</button></li>
+    </ul>
+
+    <div id="authAlert" class="alert alert-danger d-none"></div>
+
+    <!-- LOGIN FORM -->
+    <form id="loginForm" onsubmit="handleEmailPinLogin(event)">
+      <div class="mb-3">
+        <label class="form-label required">Email Address</label>
+        <input type="email" id="loginEmail" class="form-control" required placeholder="name@company.com">
+      </div>
+      <div class="mb-3">
+        <label class="form-label required">6-Digit Secure PIN</label>
+        <input type="password" id="loginPin" class="form-control" oninput="if(this.value.length > 6) this.value = this.value.slice(0,6);" required placeholder="••••••">
+      </div>
+      <button type="submit" class="btn btn-primary w-100 py-2 fw-bold">Secure Access Login</button>
+    </form>
+
+    <!-- REGISTER FORM -->
+    <form id="registerForm" style="display: none;" onsubmit="handleProfileRegister(event)">
+      <div class="mb-3">
+        <label class="form-label required">User / Business Name</label>
+        <input type="text" id="regName" class="form-control" required placeholder="e.g. TUSHAR SUKH" style="text-transform: uppercase;">
+      </div>
+      <div class="mb-3">
+        <label class="form-label required">Email Address</label>
+        <input type="email" id="regEmail" class="form-control" required placeholder="name@company.com">
+      </div>
+      <div class="mb-3">
+        <label class="form-label required">Mobile Number</label>
+        <input type="number" id="regMobile" class="form-control" oninput="if(this.value.length > 10) this.value = this.value.slice(0,10);" required placeholder="10 Digit Mobile No">
+      </div>
+      <div class="mb-3">
+        <label class="form-label required">Set 6-Digit Secure PIN</label>
+        <input type="password" id="regPin" class="form-control" oninput="if(this.value.length > 6) this.value = this.value.slice(0,6);" required placeholder="e.g. 123456">
+      </div>
+      <button type="submit" class="btn btn-success w-100 py-2 fw-bold">Register & Start 45-Day Free Trial</button>
+    </form>
+
+    <!-- FORGOT PIN FORM -->
+    <form id="forgotForm" style="display: none;" onsubmit="handleForgotPin(event)">
+      <p class="text-muted small mb-3">Apna registered Email daalo. Aapko ek secure Reset Link milega.</p>
+      <div class="mb-3">
+        <label class="form-label required">Registered Email Address</label>
+        <input type="email" id="forgotEmail" class="form-control" required placeholder="name@company.com">
+      </div>
+      <button type="submit" class="btn btn-warning w-100 py-2 fw-bold text-dark">📧 Send PIN Reset Link</button>
+      <p class="text-muted small mt-2 text-center">Reset link email inbox mein aayega (spam bhi check karein).</p>
+    </form>
+
+    <!-- RESET PIN FORM — email link click karne ke baad dikhega -->
+    <form id="resetPinForm" style="display: none;" onsubmit="handleSetNewPin(event)">
+      <p class="text-success small mb-3 fw-bold">✅ Reset link verified! Naya 6-digit PIN set karein.</p>
+      <div class="mb-3">
+        <label class="form-label required">New 6-Digit Secure PIN</label>
+        <input type="password" id="newPin" class="form-control" oninput="if(this.value.length > 6) this.value = this.value.slice(0,6);" required placeholder="New PIN (6 digits)">
+      </div>
+      <div class="mb-3">
+        <label class="form-label required">Confirm New PIN</label>
+        <input type="password" id="confirmPin" class="form-control" oninput="if(this.value.length > 6) this.value = this.value.slice(0,6);" required placeholder="Confirm PIN">
+      </div>
+      <button type="submit" class="btn btn-success w-100 py-2 fw-bold">🔐 Save New PIN & Login</button>
+    </form>
+  </div>
+
+  <!-- MAIN DASHBOARD -->
+  <div id="mainDashboard" class="container-fluid p-0">
+
+    <!-- NEW: Trial warning banner — last 7 din mein dikhega -->
+    <div id="trialWarningBanner">
+      ⚠️ <span id="trialWarningText"></span> &nbsp;|&nbsp;
+      <a href="https://razorpay.me/@tusharratansukh" target="_blank" style="color:#fbbf24; font-weight:800;">
+        Abhi Pay Karein →
+      </a>
+    </div>
+
+    <div class="header-panel d-flex justify-content-between align-items-center px-4">
+      <div>
+        <h2 class="fw-bold mb-0 text-white">VASOOLIFY SYSTEM</h2>
+        <!-- NEW: Trial days remaining bhi dikhega status ke saath -->
+        <p class="mb-0 text-info">
+          Operator: <span id="userDisplay" class="fw-bold text-warning">Loading...</span> |
+          Status: <span id="statusDisplay" class="badge bg-warning text-dark">TRIAL</span> |
+          <span id="trialDaysDisplay" class="small text-info"></span>
+        </p>
+      </div>
+      <button onclick="logoutUser()" class="btn btn-outline-danger btn-sm fw-bold px-3">Sign Out</button>
+    </div>
+
+    <div class="container my-4">
+      <div class="row g-3 mb-4">
+        <div class="col-md-4">
+          <div class="card metric-card p-3 border-start border-primary">
+            <div class="text-muted small text-uppercase fw-bold">Total Paid Collection</div>
+            <div class="h3 mb-0 fw-bold text-primary" id="metricToday">₹0.00</div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card metric-card p-3 border-start border-success">
+            <div class="text-muted small text-uppercase fw-bold">Total Entries</div>
+            <div class="h3 mb-0 fw-bold text-success" id="metricCount">0 Records</div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card metric-card p-3 border-start border-warning">
+            <div class="text-muted small text-uppercase fw-bold">Remaining Balance</div>
+            <div class="h3 mb-0 fw-bold text-warning" id="metricPending">₹0.00</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card p-4 mb-4">
+        <h4 class="mb-3 text-primary fw-bold border-bottom border-secondary pb-2">➕ New Collection Data Input Matrix</h4>
+        <form id="collectionForm" onsubmit="handleCollectionSubmit(event)">
+          <div class="row g-3">
+            <div class="col-md-4"><label class="form-label required">Customer Name</label><input type="text" id="colCustName" class="form-control" required placeholder="CUSTOMER NAME" style="text-transform: uppercase;"></div>
+            <div class="col-md-2"><label class="form-label required">Relation Type</label><select id="colRelationType" class="form-select"><option value="S/o">S/o</option><option value="W/o">W/o</option><option value="D/o">D/o</option></select></div>
+            <div class="col-md-3"><label class="form-label required">Relation Name</label><input type="text" id="colRelationName" class="form-control" required placeholder="FATHER/HUSBAND NAME" style="text-transform: uppercase;"></div>
+            <div class="col-md-3"><label class="form-label required">Customer Mobile No</label><input type="number" id="colCustMobile" class="form-control" oninput="if(this.value.length > 10) this.value = this.value.slice(0,10);" required placeholder="10 Digit Mobile"></div>
+            <div class="col-md-3"><label class="form-label required">EMI Amount (₹)</label><input type="number" id="colEmiAmount" class="form-control" required placeholder="0" min="0" oninput="calculateBalance()"></div>
+            <div class="col-md-3"><label class="form-label required">Amount Paid (₹)</label><input type="number" id="colAmountPaid" class="form-control" required placeholder="0" min="0" oninput="calculateBalance()"></div>
+            <div class="col-md-3"><label class="form-label">Balance Amount (₹)</label><input type="number" id="colBalanceAmount" class="form-control bg-dark text-warning fw-bold" readonly value="0"></div>
+            <div class="col-md-3"><label class="form-label required">Payment Mode</label><select id="colMode" class="form-select"><option value="Cash">Cash</option><option value="UPI">UPI</option><option value="Others">Others</option></select></div>
+            <div class="col-md-4"><label class="form-label required">Receipt Type</label><select id="colReceiptType" class="form-select"><option value="Advance">Advance</option><option value="Current Month">Current Month</option><option value="Overdue">Overdue</option><option value="Funding">Funding</option><option value="Penalty">Penalty</option><option value="Others">Others</option></select></div>
+            <div class="col-md-8"><label class="form-label">Remark</label><input type="text" id="colRemark" class="form-control" placeholder="Optional collection remarks"></div>
+            <div class="col-md-12 d-flex justify-content-end mt-4"><button type="submit" class="btn btn-success px-5 py-2 fw-bold">💾 Save Entry To Supabase</button></div>
+          </div>
+        </form>
+      </div>
+
+      <!-- ================================================================
+           NEW: CUSTOMER SEARCH CARD
+           -- Mobile No ya Customer Name se search karo
+           -- Results table mein dikhenge aur PDF download hogi
+      ================================================================ -->
+      <div class="card p-4 mb-4">
+        <h4 class="mb-3 text-warning fw-bold border-bottom border-secondary pb-2">🔍 Customer Search</h4>
+        <div class="row g-3 align-items-end">
+          <div class="col-md-4">
+            <label class="form-label">Search by Customer Name</label>
+            <input type="text" id="searchName" class="form-control" placeholder="Customer naam likhein..."
+              oninput="searchRecords()">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Search by Mobile No</label>
+            <input type="number" id="searchMobile" class="form-control" placeholder="Mobile number likhein..."
+              oninput="searchRecords()">
+          </div>
+          <div class="col-md-2">
+            <button onclick="clearSearch()" class="btn btn-secondary w-100 fw-bold">🔄 Clear</button>
+          </div>
+          <div class="col-md-2">
+            <button onclick="exportSearchPDF()" class="btn btn-danger w-100 fw-bold">📥 PDF Download</button>
+          </div>
+        </div>
+        <!-- Search results summary -->
+        <div id="searchSummary" class="mt-3 d-none">
+          <div class="alert alert-info mb-2 py-2 small fw-bold" id="searchResultInfo"></div>
+          <div class="table-responsive">
+            <table class="table table-dark table-hover border border-secondary mb-0">
+              <thead>
+                <tr>
+                  <th>Collected At</th><th>Customer Name</th><th>Relation</th><th>Mobile</th>
+                  <th>EMI (₹)</th><th>Paid (₹)</th><th>Balance (₹)</th><th>Mode</th><th>Receipt Type</th><th>Remark</th>
+                </tr>
+              </thead>
+              <tbody id="searchTableBody"></tbody>
+            </table>
+          </div>
+          <!-- Search result totals -->
+          <div class="row g-2 mt-2">
+            <div class="col-md-4">
+              <div class="card p-2 border-start border-primary">
+                <div class="small text-muted">Total Paid</div>
+                <div class="fw-bold text-primary" id="searchTotalPaid">₹0.00</div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="card p-2 border-start border-danger">
+                <div class="small text-muted">Total Balance</div>
+                <div class="fw-bold text-danger" id="searchTotalBalance">₹0.00</div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="card p-2 border-start border-success">
+                <div class="small text-muted">Total Records</div>
+                <div class="fw-bold text-success" id="searchTotalCount">0</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card p-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-center border-bottom border-secondary pb-3 mb-3">
+          <h4 class="text-info fw-bold m-0">📋 Real-Time Collection Ledger Log</h4>
+          <div class="d-flex gap-2 mt-2 mt-md-0">
+            <input type="date" id="filterDate" class="form-control form-control-sm" onchange="filterLedgerRecords()">
+            <select id="filterMonth" class="form-select form-select-sm" onchange="filterLedgerRecords()">
+              <option value="">-- All Months --</option>
+              <option value="01">January</option><option value="02">February</option><option value="03">March</option>
+              <option value="04">April</option><option value="05">May</option><option value="06">June</option>
+              <option value="07">July</option><option value="08">August</option><option value="09">September</option>
+              <option value="10">October</option><option value="11">November</option><option value="12">December</option>
+            </select>
+            <select id="filterReceiptType" class="form-select form-select-sm" onchange="filterLedgerRecords()">
+              <option value="">-- All Receipts --</option>
+              <option value="Advance">Advance</option><option value="Current Month">Current Month</option>
+              <option value="Overdue">Overdue</option><option value="Funding">Funding</option>
+              <option value="Penalty">Penalty</option><option value="Others">Others</option>
+            </select>
+            <button onclick="exportToPDF()" class="btn btn-danger btn-sm fw-bold px-3">📥 Export PDF</button>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-dark table-hover border border-secondary mb-0" id="ledgerTable">
+            <thead>
+              <tr>
+                <th>Collected At</th><th>Customer Name</th><th>Relation</th><th>Mobile</th>
+                <th>EMI (₹)</th><th>Paid (₹)</th><th>Balance (₹)</th><th>Mode</th><th>Receipt Type</th><th>Remark</th>
+              </tr>
+            </thead>
+            <tbody id="collectionTableBody">
+              <tr><td colspan="10" class="text-center text-muted py-4">Loading cloud workspace data...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="loading" class="position-fixed top-50 start-50 translate-middle d-none bg-dark text-white p-3 rounded-3" style="z-index: 9999;">Processing Secure Request...</div>
+
+  <script>
+    const SUPABASE_URL = "https://efnrjifrfdhwzlpcqdbp.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmbnJqaWZyZmRod3pscGNxZGJwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4MDk2MDAsImV4cCI6MjA5NjM4NTYwMH0.f4foYQtbTYXyL63LuvA_S3ilM64UEuRwYYn_qxCTk54";
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // ============================================================
+    // NEW CONSTANTS: Trial configuration
+    // -- Sirf yahan change karo agar trial period badlana ho
+    // ============================================================
+    const TRIAL_DAYS = 45;              // 45 din ka free trial
+    const TRIAL_WARNING_DAYS = 7;       // Last 7 din mein warning banner dikhega
+    const RAZORPAY_LINK = "https://razorpay.me/@tusharratansukh"; // Payment link
+
+    let cachedRecords = [];
+    let activeProfileInfo = null;
+    let currentUserSession = null;
+    // FIX PDF DATE BUG: Ab globally track hoga ki table mein abhi kaunse records hain
+    // (filter/search ke baad bhi) — exportToPDF() DOM ki jagah yahi use karega
+    let currentFilteredRecords = null;
+
+    // ============================================================
+    // PAGE LOAD: Reset token check + normal session check
+    // ============================================================
+    window.onload = async function() {
+      // Pehle URL mein reset token check karo (Forgot PIN flow)
+      const hashParams = new URLSearchParams(window.location.hash.replace('#', '?').slice(1));
+      const accessToken = hashParams.get('access_token');
+      const tokenType = hashParams.get('type');
+
+      if (accessToken && tokenType === 'recovery') {
+        const { error } = await supabaseClient.auth.setSession({
+          access_token: accessToken,
+          refresh_token: hashParams.get('refresh_token') || ''
+        });
+        if (!error) {
+          showScreen('auth');
+          switchAuthTab('reset');
+          showAlert('auth', '🔐 Reset link verified! Naya 6-digit PIN set karein.', 'show', 'success');
+          return;
+        }
+      }
+
+      // Normal login session check
+      toggleLoader(true);
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (session) {
+        await loadUserProfileAndDashboard(session);
+      } else {
+        showScreen('auth');
+      }
+      toggleLoader(false);
+    };
+
+    function toggleLoader(show) {
+      document.getElementById('loading').classList.toggle('d-none', !show);
+    }
+
+    function showScreen(screenType) {
+      document.getElementById('authScreen').style.display = screenType === 'auth' ? 'block' : 'none';
+      document.getElementById('mainDashboard').style.display = screenType === 'dashboard' ? 'block' : 'none';
+    }
+
+    function calculateBalance() {
+      const emi = parseFloat(document.getElementById('colEmiAmount').value) || 0;
+      const paid = parseFloat(document.getElementById('colAmountPaid').value) || 0;
+      document.getElementById('colBalanceAmount').value = (emi - paid >= 0) ? (emi - paid) : 0;
+    }
+
+    // ============================================================
+    // NEW FUNCTION: checkTrialStatus
+    // -- Profile load hone ke baad yeh function call hota hai
+    // -- Trial days calculate karta hai aur sahi action leta hai:
+    //    1. ACTIVE user → kuch nahi, seedha dashboard
+    //    2. TRIAL user → din calculate karo:
+    //       a. 45 din se zyada → expired overlay dikhao
+    //       b. Last 7 din → warning banner dikhao
+    //       c. Normal → sirf days remaining dikhao
+    // ============================================================
+    function checkTrialStatus(profile) {
+      // ACTIVE subscription wale users ko koi check nahi
+      if (profile.subscription_status === 'ACTIVE') {
+        document.getElementById('statusDisplay').className = 'badge bg-success';
+        document.getElementById('statusDisplay').innerText = 'ACTIVE';
+        document.getElementById('trialDaysDisplay').innerText = '✅ Premium Member';
+        return; // Koi restriction nahi
+      }
+
+      // Trial user ke liye din calculate karo
+      // trial_start_date profile mein store hai (Supabase column)
+      // Agar column nahi hai toh created_at use karo fallback ke liye
+      const startDateRaw = profile.trial_start_date || profile.created_at;
+
+      if (!startDateRaw) {
+        // Date nahi mili — expired treat karo (safe default)
+        showTrialExpiredOverlay();
+        return;
+      }
+
+      const startDate = new Date(startDateRaw);
+      const today = new Date();
+
+      // Milliseconds se days mein convert karo
+      const msPerDay = 1000 * 60 * 60 * 24;
+      const daysUsed = Math.floor((today - startDate) / msPerDay);
+      const daysLeft = TRIAL_DAYS - daysUsed;
+
+      console.log(`Trial: ${daysUsed} din use hue, ${daysLeft} din bache`);
+
+      if (daysLeft <= 0) {
+        // ---- TRIAL EXPIRED: Overlay dikhao, dashboard block karo ----
+        showTrialExpiredOverlay();
+
+      } else if (daysLeft <= TRIAL_WARNING_DAYS) {
+        // ---- WARNING ZONE: Last 7 din — banner dikhao ----
+        const banner = document.getElementById('trialWarningBanner');
+        document.getElementById('trialWarningText').innerText =
+          `⚠️ Aapka Trial sirf ${daysLeft} din mein khatam ho raha hai! Abhi payment karein.`;
+        banner.classList.add('show');
+        document.getElementById('trialDaysDisplay').innerText = `Trial: ${daysLeft} din bache`;
+        document.getElementById('statusDisplay').className = 'badge bg-danger';
+
+      } else {
+        // ---- NORMAL TRIAL: Sirf din remaining dikhao ----
+        document.getElementById('trialDaysDisplay').innerText = `Trial: ${daysLeft} din bache`;
+        document.getElementById('statusDisplay').className = 'badge bg-warning text-dark';
+        document.getElementById('statusDisplay').innerText = 'TRIAL';
+      }
+    }
+
+    // ============================================================
+    // NEW FUNCTION: showTrialExpiredOverlay
+    // -- Poori screen cover karta hai, dashboard disable ho jaata hai
+    // ============================================================
+    function showTrialExpiredOverlay() {
+      document.getElementById('trialExpiredOverlay').classList.add('show');
+    }
+
+    // ============================================================
+    // REGISTRATION — trial_start_date bhi save karo
+    // ============================================================
+    async function handleProfileRegister(e) {
+      e.preventDefault();
+      toggleLoader(true);
+      showAlert('auth', '', 'hide');
+
+      const name = document.getElementById('regName').value.toUpperCase();
+      const email = document.getElementById('regEmail').value;
+      const mobile = document.getElementById('regMobile').value;
+      const pin = document.getElementById('regPin').value;
+
+      if (mobile.length !== 10) { toggleLoader(false); return showAlert('auth', 'Mobile number strictly 10 digits ka hona chahiye!'); }
+      if (pin.length !== 6) { toggleLoader(false); return showAlert('auth', 'PIN strictly 6 digits ka banayein!'); }
+
+      const { data: authData, error: authError } = await supabaseClient.auth.signUp({
+        email, password: `secure_pin_${pin}`,
+        options: { data: { user_name: name, mobile_no: mobile, pin } }
+      });
+
+      if (authError) {
+        showAlert('auth', "Registration Error: " + authError.message);
+      } else if (authData.user) {
+        // FIX: Registration ke baad manual upsert with trial_start_date
+        // trial_start_date = aaj ki date — 45 din isi se count honge
+        const { error: profileError } = await supabaseClient.from('profiles').upsert([{
+          id: authData.user.id,
+          user_name: name,
+          mobile_no: mobile,
+          pin: pin,
+          subscription_status: 'TRIAL',
+          trial_start_date: new Date().toISOString()  // NEW: Trial shuru aaj se
+        }], { onConflict: 'id' });
+
+        if (profileError) console.warn("Profile upsert warning:", profileError.message);
+
+        showAlert('auth', `✅ Registration Successful! Aapka ${TRIAL_DAYS}-din ka Free Trial shuru ho gaya. Login karein.`, 'show', 'success');
+        switchAuthTab('login');
+      }
+      toggleLoader(false);
+    }
+
+    // ============================================================
+    // LOGIN
+    // ============================================================
+    async function handleEmailPinLogin(e) {
+      e.preventDefault();
+      toggleLoader(true);
+      showAlert('auth', '', 'hide');
+
+      const email = document.getElementById('loginEmail').value;
+      const pin = document.getElementById('loginPin').value;
+
+      const { data, error } = await supabaseClient.auth.signInWithPassword({
+        email, password: `secure_pin_${pin}`
+      });
+
+      if (error) {
+        showAlert('auth', 'Login Failed: Invalid Email or 6-digit Security PIN!');
+        toggleLoader(false);
+      } else if (data.session) {
+        await loadUserProfileAndDashboard(data.session);
+      }
+    }
+
+    // ============================================================
+    // PROFILE LOAD WITH RETRY + TRIAL CHECK
+    // ============================================================
+    async function loadUserProfileAndDashboard(session) {
+      currentUserSession = session;
+
+      try {
+        let profile = null;
+        const MAX_RETRY = 3;
+        const RETRY_DELAY_MS = 1500;
+
+        for (let attempt = 1; attempt <= MAX_RETRY; attempt++) {
+          const { data: profiles, error } = await supabaseClient
+            .from('profiles').select('*').eq('id', session.user.id);
+
+          if (!error && profiles && profiles.length > 0) {
+            profile = profiles[0];
+            break;
+          }
+          if (attempt < MAX_RETRY) await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+        }
+
+        // Fallback: auth metadata se profile banao
+        if (!profile) {
+          const meta = session.user.user_metadata || {};
+          profile = {
+            id: session.user.id,
+            user_name: meta.user_name || session.user.email,
+            mobile_no: meta.mobile_no || 'N/A',
+            subscription_status: 'TRIAL',
+            trial_start_date: session.user.created_at  // Auth user created_at fallback
+          };
+          // Background mein save karo
+          supabaseClient.from('profiles').upsert([{
+            ...profile, pin: meta.pin || ''
+          }], { onConflict: 'id' }).then(({ error: e }) => {
+            if (e) console.warn("Fallback upsert failed:", e.message);
+          });
+        }
+
+        activeProfileInfo = profile;
+        document.getElementById('userDisplay').innerText = profile.user_name;
+        document.getElementById('statusDisplay').innerText = profile.subscription_status;
+
+        showScreen('dashboard');
+
+        // NEW: Trial status check — expired? warning? active?
+        checkTrialStatus(profile);
+
+        await fetchCloudRecords();
+
+      } catch (err) {
+        console.error("Dashboard load error:", err.message);
+        showAlert('auth', 'Session load mein problem. Dobara login karein.');
+        showScreen('auth');
+      }
+      toggleLoader(false);
+    }
+
+    // ============================================================
+    // CLOUD RECORDS FETCH
+    // ============================================================
+    async function fetchCloudRecords() {
+      if (!currentUserSession) return;
+      const { data, error } = await supabaseClient
+        .from('collections').select('*').order('collected_at', { ascending: false });
+      if (!error && data) {
+        cachedRecords = data;
+        renderLedger(cachedRecords);
+        calculateTopMetrics(cachedRecords);
+      }
+    }
+
+    // ============================================================
+    // COLLECTION SUBMIT
+    // ============================================================
+    async function handleCollectionSubmit(e) {
+      e.preventDefault();
+      if (!currentUserSession || !activeProfileInfo) return alert("Authorization scope missing.");
+
+      const mobile = document.getElementById('colCustMobile').value;
+      if (mobile.length !== 10) return alert("Customer mobile number must be exactly 10 digits!");
+
+      toggleLoader(true);
+      const newEntry = {
+        user_id: currentUserSession.user.id,
+        customer_name: document.getElementById('colCustName').value.toUpperCase(),
+        relation_type: document.getElementById('colRelationType').value,
+        relation_name: document.getElementById('colRelationName').value.toUpperCase(),
+        cust_mobile: mobile,
+        emi_amount: parseFloat(document.getElementById('colEmiAmount').value) || 0,
+        amount_paid: parseFloat(document.getElementById('colAmountPaid').value) || 0,
+        balance_amount: parseFloat(document.getElementById('colBalanceAmount').value) || 0,
+        mode: document.getElementById('colMode').value,
+        receipt_type: document.getElementById('colReceiptType').value,
+        remark: document.getElementById('colRemark').value || "-",
+        entered_by: activeProfileInfo.user_name,
+        funding_status: document.getElementById('colReceiptType').value === 'Funding' ? 'Active' : 'N/A',
+        collected_at: new Date().toISOString()
+      };
+
+      const { error } = await supabaseClient.from('collections').insert([newEntry]);
+      if (error) {
+        alert("Database Error: " + error.message);
+      } else {
+        document.getElementById('collectionForm').reset();
+        document.getElementById('colBalanceAmount').value = "0";
+        await fetchCloudRecords();
+      }
+      toggleLoader(false);
+    }
+
+    function calculateTopMetrics(records) {
+      let totalPaid = 0, totalBalance = 0;
+      records.forEach(r => {
+        totalPaid += Number(r.amount_paid) || 0;
+        totalBalance += Number(r.balance_amount) || 0;
+      });
+      document.getElementById('metricToday').innerText = "₹" + totalPaid.toFixed(2);
+      document.getElementById('metricCount').innerText = records.length + " Records";
+      document.getElementById('metricPending').innerText = "₹" + totalBalance.toFixed(2);
+    }
+
+    function renderLedger(recordsList) {
+      const tbody = document.getElementById('collectionTableBody');
+      tbody.innerHTML = "";
+      if (recordsList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="10" class="text-center text-muted py-4">No enterprise metrics captured yet.</td></tr>`;
+        return;
+      }
+      recordsList.forEach(r => {
+        tbody.innerHTML += `<tr>
+          <td>${new Date(r.collected_at).toLocaleString()}</td>
+          <td class="text-warning fw-bold">${r.customer_name}</td>
+          <td><small>${r.relation_type} ${r.relation_name}</small></td>
+          <td>${r.cust_mobile}</td>
+          <td>₹${Number(r.emi_amount).toFixed(2)}</td>
+          <td class="text-success fw-bold">₹${Number(r.amount_paid).toFixed(2)}</td>
+          <td class="text-danger fw-bold">₹${Number(r.balance_amount).toFixed(2)}</td>
+          <td><span class="badge bg-secondary">${r.mode}</span></td>
+          <td><span class="badge ${r.receipt_type === 'Funding' ? 'bg-primary' : 'bg-info text-dark'}">${r.receipt_type}</span></td>
+          <td class="small text-muted">${r.remark}</td>
+        </tr>`;
+      });
+    }
+
+    function filterLedgerRecords() {
+      const targetDate = document.getElementById('filterDate').value;
+      const targetMonth = document.getElementById('filterMonth').value;
+      const targetType = document.getElementById('filterReceiptType').value;
+      let filtered = cachedRecords;
+      if (targetDate) filtered = filtered.filter(r => r.collected_at.startsWith(targetDate));
+      if (targetMonth) filtered = filtered.filter(r => r.collected_at.substring(5, 7) === targetMonth);
+      if (targetType) filtered = filtered.filter(r => r.receipt_type === targetType);
+      // FIX PDF DATE BUG: Filter ke baad jo records hain unhe globally save karo
+      // taaki exportToPDF() sahi data use kare, DOM se nahi
+      currentFilteredRecords = filtered;
+      renderLedger(filtered);
+      calculateTopMetrics(filtered);
+    }
+
+    function exportToPDF() {
+      // ================================================================
+      // FIX: PDF ab DOM (HTML table) se nahi, seedha cachedRecords
+      // array se data leta hai — jisme actual database ka data hota hai.
+      //
+      // Purana code problem:
+      //   - DOM se innerText read karta tha — browser locale ke hisaab
+      //     se date format alag alag hoti thi
+      //   - Agar filter laga ho toh sirf filtered rows export hoti thin
+      //   - "Collected At" column mein toLocaleString() ki wajah se
+      //     date kabhi kabhi galat ya inconsistent dikhti thi
+      //
+      // Naya code fix:
+      //   - cachedRecords (Supabase ka raw data) seedha use karo
+      //   - Date format khud manually banao — DD/MM/YYYY HH:MM format
+      //   - PDF header mein report generation time bhi likho
+      //   - Filtered records export karna ho toh filterLedgerRecords()
+      //     ke baad jo table mein dikhta hai wahi export hoga — isliye
+      //     hum currentExportData variable use karte hain
+      // ================================================================
+
+      const { jsPDF } = window.jspdf;
+
+      // Export ke liye data — agar filter laga hai toh filtered, warna sab
+      // currentFilteredRecords globally set hoti hai filterLedgerRecords() mein
+      const exportData = (typeof currentFilteredRecords !== 'undefined' && currentFilteredRecords !== null)
+        ? currentFilteredRecords
+        : cachedRecords;
+
+      if (!exportData || exportData.length === 0) {
+        return alert("Export karne ke liye koi records nahi hain!");
+      }
+
+      const doc = new jsPDF('l', 'mm', 'a4');
+      doc.setFont("sans-serif", "bold");
+
+      // ---- PDF Header ----
+      doc.setFontSize(14);
+      doc.text("VASOOLIFY - COLLECTION LEDGER REPORT", 14, 13);
+
+      // Report generate hone ki actual date/time — neeche print hogi
+      doc.setFontSize(8);
+      doc.setFont("sans-serif", "normal");
+      const generatedOn = formatDateForPDF(new Date().toISOString());
+      doc.text(`Report Generated: ${generatedOn}  |  Total Records: ${exportData.length}  |  Operator: ${activeProfileInfo ? activeProfileInfo.user_name : ''}`, 14, 20);
+
+      // ---- Table Rows — cachedRecords se direct map karo ----
+      const tableRows = exportData.map(r => [
+        formatDateForPDF(r.collected_at),          // Consistent date format
+        r.customer_name || '-',
+        `${r.relation_type || ''} ${r.relation_name || ''}`.trim(),
+        r.cust_mobile || '-',
+        `Rs. ${Number(r.emi_amount || 0).toFixed(2)}`,
+        `Rs. ${Number(r.amount_paid || 0).toFixed(2)}`,
+        `Rs. ${Number(r.balance_amount || 0).toFixed(2)}`,
+        r.mode || '-',
+        r.receipt_type || '-',
+        r.remark || '-'
+      ]);
+
+      doc.autoTable({
+        head: [['Collected At', 'Customer Name', 'Relation', 'Mobile', 'EMI', 'Paid', 'Balance', 'Mode', 'Receipt Type', 'Remark']],
+        body: tableRows,
+        startY: 24,
+        theme: 'grid',
+        styles: { fontSize: 7.5 },
+        headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold' }
+      });
+
+      // ---- PDF filename mein bhi sahi aaj ki date ----
+      // Format: Vasoolify_Report_07-06-2026.pdf
+      const today = new Date();
+      const fileDate = `${String(today.getDate()).padStart(2,'0')}-${String(today.getMonth()+1).padStart(2,'0')}-${today.getFullYear()}`;
+      doc.save(`Vasoolify_Report_${fileDate}.pdf`);
+    }
+
+    async function logoutUser() {
+      await supabaseClient.auth.signOut();
+      currentUserSession = null;
+      activeProfileInfo = null;
+      // Overlay hide karo logout par
+      document.getElementById('trialExpiredOverlay').classList.remove('show');
+      showScreen('auth');
+    }
+
+    // ============================================================
+    // FORGOT PIN — Email se reset link bhejo
+    // ============================================================
+    async function handleForgotPin(e) {
+      e.preventDefault();
+      toggleLoader(true);
+      showAlert('auth', '', 'hide');
+      const email = document.getElementById('forgotEmail').value;
+      const currentPageUrl = window.location.href.split('#')[0];
+      const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo: currentPageUrl });
+      if (error) {
+        showAlert('auth', '❌ Error: ' + error.message);
+      } else {
+        showAlert('auth', '✅ Reset link bhej diya! Inbox check karein (spam bhi).', 'show', 'success');
+      }
+      toggleLoader(false);
+    }
+
+    // ============================================================
+    // SET NEW PIN — Reset token ke baad naya PIN save karo
+    // ============================================================
+    async function handleSetNewPin(e) {
+      e.preventDefault();
+      toggleLoader(true);
+      showAlert('auth', '', 'hide');
+      const newPin = document.getElementById('newPin').value;
+      const confirmPin = document.getElementById('confirmPin').value;
+      if (newPin !== confirmPin) { showAlert('auth', 'Dono PIN match nahi kar rahe!'); toggleLoader(false); return; }
+      if (newPin.length !== 6) { showAlert('auth', 'PIN exactly 6 digits ka hona chahiye!'); toggleLoader(false); return; }
+      const { error } = await supabaseClient.auth.updateUser({ password: `secure_pin_${newPin}` });
+      if (error) {
+        showAlert('auth', 'PIN update error: ' + error.message);
+      } else {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session) {
+          await supabaseClient.from('profiles').update({ pin: newPin }).eq('id', session.user.id);
+        }
+        showAlert('auth', '🎉 Naya PIN set ho gaya! Login karein.', 'show', 'success');
+        window.history.replaceState(null, '', window.location.pathname);
+        setTimeout(() => switchAuthTab('login'), 2000);
+      }
+      toggleLoader(false);
+    }
+
+
+    // ================================================================
+    // NEW FUNCTION: searchRecords
+    // ----------------------------------------------------------------
+    // Customer Name ya Mobile No se search karta hai cachedRecords mein
+    // Case-insensitive search — partial match bhi kaam karta hai
+    // Dono fields ek saath fill ho sakti hain — AND condition lagti hai
+    // ================================================================
+    let currentSearchResults = []; // Search results globally store karo PDF ke liye
+
+    function searchRecords() {
+      const nameQuery = (document.getElementById('searchName').value || '').trim().toUpperCase();
+      const mobileQuery = (document.getElementById('searchMobile').value || '').trim();
+
+      // Dono empty hain toh results hide karo
+      if (!nameQuery && !mobileQuery) {
+        document.getElementById('searchSummary').classList.add('d-none');
+        currentSearchResults = [];
+        return;
+      }
+
+      // cachedRecords mein se filter karo
+      let results = cachedRecords.filter(r => {
+        const nameMatch = nameQuery
+          ? (r.customer_name || '').toUpperCase().includes(nameQuery)
+          : true;
+        const mobileMatch = mobileQuery
+          ? (r.cust_mobile || '').toString().includes(mobileQuery)
+          : true;
+        return nameMatch && mobileMatch; // Dono conditions satisfy honi chahiye
+      });
+
+      currentSearchResults = results; // PDF ke liye save karo
+
+      // Results table render karo
+      const tbody = document.getElementById('searchTableBody');
+      tbody.innerHTML = '';
+
+      if (results.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center text-warning py-3">Koi record nahi mila is search ke liye.</td></tr>';
+        document.getElementById('searchResultInfo').innerText = 'Koi result nahi mila.';
+      } else {
+        let totalPaid = 0, totalBalance = 0;
+        results.forEach(r => {
+          totalPaid += Number(r.amount_paid) || 0;
+          totalBalance += Number(r.balance_amount) || 0;
+          tbody.innerHTML += `<tr>
+            <td>${formatDateDisplay(r.collected_at)}</td>
+            <td class="text-warning fw-bold">${r.customer_name}</td>
+            <td><small>${r.relation_type} ${r.relation_name}</small></td>
+            <td>${r.cust_mobile}</td>
+            <td>₹${Number(r.emi_amount).toFixed(2)}</td>
+            <td class="text-success fw-bold">₹${Number(r.amount_paid).toFixed(2)}</td>
+            <td class="text-danger fw-bold">₹${Number(r.balance_amount).toFixed(2)}</td>
+            <td><span class="badge bg-secondary">${r.mode}</span></td>
+            <td><span class="badge ${r.receipt_type === 'Funding' ? 'bg-primary' : 'bg-info text-dark'}">${r.receipt_type}</span></td>
+            <td class="small text-muted">${r.remark}</td>
+          </tr>`;
+        });
+        // Summary metrics update karo
+        document.getElementById('searchTotalPaid').innerText = '₹' + totalPaid.toFixed(2);
+        document.getElementById('searchTotalBalance').innerText = '₹' + totalBalance.toFixed(2);
+        document.getElementById('searchTotalCount').innerText = results.length + ' Records';
+        document.getElementById('searchResultInfo').innerText =
+          `🔍 "${nameQuery || mobileQuery}" ke liye ${results.length} record(s) mile.`;
+      }
+
+      document.getElementById('searchSummary').classList.remove('d-none');
+    }
+
+    // ================================================================
+    // NEW FUNCTION: clearSearch
+    // -- Search fields clear karo aur results hide karo
+    // ================================================================
+    function clearSearch() {
+      document.getElementById('searchName').value = '';
+      document.getElementById('searchMobile').value = '';
+      document.getElementById('searchSummary').classList.add('d-none');
+      document.getElementById('searchTableBody').innerHTML = '';
+      currentSearchResults = [];
+    }
+
+    // ================================================================
+    // NEW FUNCTION: exportSearchPDF
+    // -- Search results ki alag PDF banata hai
+    // -- Agar koi search nahi kiya toh alert deta hai
+    // ================================================================
+    function exportSearchPDF() {
+      if (!currentSearchResults || currentSearchResults.length === 0) {
+        return alert("Pehle koi search karein, phir PDF download karein!");
+      }
+
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF('l', 'mm', 'a4');
+
+      // Header
+      doc.setFont("sans-serif", "bold");
+      doc.setFontSize(14);
+      doc.text("VASOOLIFY - CUSTOMER SEARCH REPORT", 14, 13);
+
+      doc.setFontSize(8);
+      doc.setFont("sans-serif", "normal");
+      const nameQ = document.getElementById('searchName').value || '-';
+      const mobQ = document.getElementById('searchMobile').value || '-';
+      const genTime = formatDateForPDF(new Date().toISOString());
+      doc.text(
+        `Search: Name="${nameQ}" | Mobile="${mobQ}" | Records: ${currentSearchResults.length} | Generated: ${genTime}`,
+        14, 20
+      );
+
+      // Table rows
+      const tableRows = currentSearchResults.map(r => [
+        formatDateForPDF(r.collected_at),
+        r.customer_name || '-',
+        `${r.relation_type || ''} ${r.relation_name || ''}`.trim(),
+        r.cust_mobile || '-',
+        `Rs. ${Number(r.emi_amount || 0).toFixed(2)}`,
+        `Rs. ${Number(r.amount_paid || 0).toFixed(2)}`,
+        `Rs. ${Number(r.balance_amount || 0).toFixed(2)}`,
+        r.mode || '-',
+        r.receipt_type || '-',
+        r.remark || '-'
+      ]);
+
+      doc.autoTable({
+        head: [['Collected At', 'Customer Name', 'Relation', 'Mobile', 'EMI', 'Paid', 'Balance', 'Mode', 'Receipt Type', 'Remark']],
+        body: tableRows,
+        startY: 24,
+        theme: 'grid',
+        styles: { fontSize: 7.5 },
+        headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold' }
+      });
+
+      // Filename mein search query bhi add karo
+      const today = new Date();
+      const fileDate = `${String(today.getDate()).padStart(2,'0')}-${String(today.getMonth()+1).padStart(2,'0')}-${today.getFullYear()}`;
+      const safeName = (nameQ !== '-' ? nameQ : mobQ).replace(/[^a-zA-Z0-9]/g, '_').slice(0, 20);
+      doc.save(`Vasoolify_Search_${safeName}_${fileDate}.pdf`);
+    }
+
+    // ================================================================
+    // HELPER: formatDateDisplay — Table mein dikhane ke liye
+    // ================================================================
+    function formatDateDisplay(isoString) {
+      if (!isoString) return '-';
+      const d = new Date(isoString);
+      return d.toLocaleString('en-IN', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: true
+      });
+    }
+
+    // ================================================================
+    // GLOBAL HELPER: formatDateForPDF
+    // -- Yeh function GLOBAL scope mein hai taaki exportToPDF() aur
+    //    exportSearchPDF() dono use kar sakein
+    // -- Input:  ISO string "2026-06-07T10:30:00.000Z"
+    // -- Output: "07/06/2026 10:30"
+    // ================================================================
+    function formatDateForPDF(isoString) {
+      if (!isoString) return '-';
+      const d = new Date(isoString);
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const yyyy = d.getFullYear();
+      const hh = String(d.getHours()).padStart(2, '0');
+      const min = String(d.getMinutes()).padStart(2, '0');
+      return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
+    }
+
+    function switchAuthTab(tab) {
+      document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none';
+      document.getElementById('registerForm').style.display = tab === 'register' ? 'block' : 'none';
+      document.getElementById('forgotForm').style.display = tab === 'forgot' ? 'block' : 'none';
+      document.getElementById('resetPinForm').style.display = tab === 'reset' ? 'block' : 'none';
+      document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+      document.getElementById('tab-register').classList.toggle('active', tab === 'register');
+      document.getElementById('tab-forgot').classList.toggle('active', tab === 'forgot');
+    }
+
+    function showAlert(type, message, action = 'show', state = 'danger') {
+      const alertBox = document.getElementById(type + 'Alert');
+      if (action === 'hide') return alertBox.classList.add('d-none');
+      alertBox.className = `alert alert-${state}`; alertBox.innerText = message; alertBox.classList.remove('d-none');
+    }
+  </script>
+</body>
+</html>
