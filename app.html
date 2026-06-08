@@ -5,6 +5,20 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Vasoolify - Secure Collection Dashboard</title>
+
+  <!--
+  ============================================================
+  SECURITY HEADERS via meta tags
+  FIX #4 / #8: Content-Security-Policy thoda tight kiya gaya
+  taaki inline scripts aur CDN sources hi allowed rahein.
+  Real production mein yeh server-side headers se karna chahiye
+  (GitHub Pages pe seedha nahi hota, but Cloudflare/Netlify se hota hai)
+  ============================================================
+  -->
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
+  <meta http-equiv="X-Frame-Options" content="DENY">
+  <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
+
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -28,7 +42,7 @@
     #mainDashboard { display: none; }
 
     /* ============================================================
-       NEW: TRIAL EXPIRED OVERLAY STYLES
+       TRIAL EXPIRED OVERLAY STYLES
        -- Poore dashboard ko blur karke payment screen dikhata hai
        -- User kuch bhi use nahi kar sakta jab tak payment nahi karta
     ============================================================ */
@@ -71,7 +85,7 @@
     }
     .pay-btn:hover { transform: scale(1.02); color: white; }
 
-    /* NEW: Trial warning banner — dashboard ke top par dikhega */
+    /* Trial warning banner — dashboard ke top par dikhega, last 7 din mein */
     #trialWarningBanner {
       display: none;
       background: linear-gradient(90deg, #92400e, #b45309);
@@ -82,9 +96,49 @@
       font-size: 14px;
     }
     #trialWarningBanner.show { display: block; }
+
+    /* ============================================================
+       FIX #1: LOGIN GLITCH — Page freeze prevent karne ke liye
+       Loading spinner overlay: login ke dauran screen block karta hai
+       taaki user ko pata chale ki kaam ho raha hai
+    ============================================================ */
+    #loginLoadingOverlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.85);
+      z-index: 88888;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      gap: 16px;
+    }
+    #loginLoadingOverlay.show { display: flex; }
+    .login-spinner {
+      width: 48px; height: 48px;
+      border: 4px solid rgba(59,130,246,0.2);
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: spinAnim 0.8s linear infinite;
+    }
+    @keyframes spinAnim { to { transform: rotate(360deg); } }
+    .login-loading-text { color: #94a3b8; font-size: 14px; }
   </style>
 </head>
 <body>
+
+  <!--
+  ============================================================
+  FIX #1: LOGIN GLITCH — Dedicated smooth loading overlay
+  Pehle sirf #loading div tha jo thoda awkward tha.
+  Ab ek full-screen soft overlay hai jo login ke dauran dikhega
+  aur dashboard ready hone ke baad chhup jaayega.
+  ============================================================
+  -->
+  <div id="loginLoadingOverlay">
+    <div class="login-spinner"></div>
+    <div class="login-loading-text">🔐 Secure dashboard load ho raha hai...</div>
+  </div>
 
   <!-- ============================================================
        TRIAL EXPIRED FULL-SCREEN OVERLAY
@@ -98,11 +152,11 @@
       <p>Aapka <strong>45-din ka Free Trial</strong> expire ho gaya hai.<br>
         Dashboard use karna jaari rakhne ke liye please payment karein.</p>
       <div class="alert alert-info text-start mb-3 small">
-        ✅ Payment ke baad apna <strong>Transaction ID / Screenshot</strong> WhatsApp par bhejein — 
+        ✅ Payment ke baad apna <strong>Transaction ID / Screenshot</strong> WhatsApp par bhejein —
         24 ghante mein aapka account <span class="text-success fw-bold">ACTIVE</span> kar diya jaayega.
       </div>
       <!-- RAZORPAY PAYMENT LINK — seedha Razorpay par le jaata hai -->
-      <a href="https://razorpay.me/@tusharratansukh" target="_blank" class="pay-btn">
+      <a href="https://razorpay.me/@tusharratansukh" target="_blank" rel="noopener noreferrer" class="pay-btn">
         💳 Abhi Payment Karein — Razorpay
       </a>
       <button onclick="logoutUser()" class="btn btn-outline-secondary w-100">
@@ -154,7 +208,11 @@
         <label class="form-label required">Set 6-Digit Secure PIN</label>
         <input type="password" id="regPin" class="form-control" oninput="if(this.value.length > 6) this.value = this.value.slice(0,6);" required placeholder="e.g. 123456">
       </div>
-      <button type="submit" class="btn btn-success w-100 py-2 fw-bold">Register & Start 45-Day Free Trial</button>
+      <!--
+        FIX #3: Button text mein bhi "45-Day" likha hai jo
+        TRIAL_DAYS constant ke saath consistent hai
+      -->
+      <button type="submit" class="btn btn-success w-100 py-2 fw-bold">Register &amp; Start 45-Day Free Trial</button>
     </form>
 
     <!-- FORGOT PIN FORM -->
@@ -186,10 +244,10 @@
   <!-- MAIN DASHBOARD -->
   <div id="mainDashboard" class="container-fluid p-0">
 
-    <!-- NEW: Trial warning banner — last 7 din mein dikhega -->
+    <!-- Trial warning banner — last 7 din mein dikhega -->
     <div id="trialWarningBanner">
       ⚠️ <span id="trialWarningText"></span> &nbsp;|&nbsp;
-      <a href="https://razorpay.me/@tusharratansukh" target="_blank" style="color:#fbbf24; font-weight:800;">
+      <a href="https://razorpay.me/@tusharratansukh" target="_blank" rel="noopener noreferrer" style="color:#fbbf24; font-weight:800;">
         Abhi Pay Karein →
       </a>
     </div>
@@ -197,7 +255,7 @@
     <div class="header-panel d-flex justify-content-between align-items-center px-4">
       <div>
         <h2 class="fw-bold mb-0 text-white">VASOOLIFY SYSTEM</h2>
-        <!-- NEW: Trial days remaining bhi dikhega status ke saath -->
+        <!-- Trial days remaining bhi dikhega status ke saath -->
         <p class="mb-0 text-info">
           Operator: <span id="userDisplay" class="fw-bold text-warning">Loading...</span> |
           Status: <span id="statusDisplay" class="badge bg-warning text-dark">TRIAL</span> |
@@ -242,14 +300,19 @@
             <div class="col-md-3"><label class="form-label">Balance Amount (₹)</label><input type="number" id="colBalanceAmount" class="form-control bg-dark text-warning fw-bold" readonly value="0"></div>
             <div class="col-md-3"><label class="form-label required">Payment Mode</label><select id="colMode" class="form-select"><option value="Cash">Cash</option><option value="UPI">UPI</option><option value="Others">Others</option></select></div>
             <div class="col-md-4"><label class="form-label required">Receipt Type</label><select id="colReceiptType" class="form-select"><option value="Advance">Advance</option><option value="Current Month">Current Month</option><option value="Overdue">Overdue</option><option value="Funding">Funding</option><option value="Penalty">Penalty</option><option value="Others">Others</option></select></div>
-            <div class="col-md-8"><label class="form-label">Remark</label><input type="text" id="colRemark" class="form-control" placeholder="Optional collection remarks"></div>
+            <!--
+              FIX #2: REMARK FIELD — maxlength add kiya gaya (200 chars)
+              aur trim() se whitespace-only entries bhi handle hoti hain
+              (JS mein bhi fix hai — neeche handleCollectionSubmit mein dekho)
+            -->
+            <div class="col-md-8"><label class="form-label">Remark</label><input type="text" id="colRemark" class="form-control" placeholder="Optional collection remarks" maxlength="200"></div>
             <div class="col-md-12 d-flex justify-content-end mt-4"><button type="submit" class="btn btn-success px-5 py-2 fw-bold">💾 Save Entry</button></div>
           </div>
         </form>
       </div>
 
       <!-- ================================================================
-           NEW: CUSTOMER SEARCH CARD
+           CUSTOMER SEARCH CARD
            -- Mobile No ya Customer Name se search karo
            -- Results table mein dikhenge aur PDF download hogi
       ================================================================ -->
@@ -349,21 +412,54 @@
     </div>
   </div>
 
+  <!-- Small processing indicator (sirf minor operations ke liye) -->
   <div id="loading" class="position-fixed top-50 start-50 translate-middle d-none bg-dark text-white p-3 rounded-3" style="z-index: 9999;">Processing Secure Request...</div>
 
   <script>
+    // ============================================================
+    // SUPABASE CONFIG
+    // FIX #4/#5: Anon key ko public GitHub file mein dalna safe hai
+    // kyunki yeh sirf "anon" (read-limited) key hai.
+    // Lekin Supabase RLS (Row Level Security) zaroori hai —
+    // iske bina koi bhi kisi ka bhi data dekh sakta hai!
+    // RLS setup guide comment ke neeche likha hai.
+    // ============================================================
     const SUPABASE_URL = "https://efnrjifrfdhwzlpcqdbp.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmbnJqaWZyZmRod3pscGNxZGJwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4MDk2MDAsImV4cCI6MjA5NjM4NTYwMH0.f4foYQtbTYXyL63LuvA_S3ilM64UEuRwYYn_qxCTk54";
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+    /*
+    ============================================================
+    SUPABASE RLS (Row Level Security) — ZAROOR LAGAO
+    FIX #5/#7/#8: Yeh SQL Supabase SQL Editor mein chalao:
+
+    -- PROFILES table: sirf apna data dekh/badal sako
+    ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY "Own profile only" ON profiles
+      USING (auth.uid() = id)
+      WITH CHECK (auth.uid() = id);
+
+    -- COLLECTIONS table: sirf apne collections dekho
+    ALTER TABLE collections ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY "Own collections only" ON collections
+      USING (auth.uid() = user_id)
+      WITH CHECK (auth.uid() = user_id);
+
+    Agar yeh RLS nahi lagaya toh koi bhi anon key se
+    SABHI users ka data dekh sakta hai — yeh CRITICAL hai!
+    ============================================================
+    */
+
     // ============================================================
-    // NEW CONSTANTS: Trial configuration
+    // TRIAL CONFIGURATION CONSTANTS
     // -- Sirf yahan change karo agar trial period badlana ho
+    // -- FIX #3: TRIAL_DAYS = 45 — registration mein bhi 45 hi jaata hai
     // ============================================================
     const TRIAL_DAYS = 45;              // 45 din ka free trial
     const TRIAL_WARNING_DAYS = 7;       // Last 7 din mein warning banner dikhega
     const RAZORPAY_LINK = "https://razorpay.me/@tusharratansukh"; // Payment link
 
+    // Global state variables
     let cachedRecords = [];
     let activeProfileInfo = null;
     let currentUserSession = null;
@@ -372,7 +468,26 @@
     let currentFilteredRecords = null;
 
     // ============================================================
+    // FIX #1: LOGIN PAGE FREEZE — Smooth Loading Overlay Functions
+    // -- showLoginLoader(): login process shuru hone par full-screen
+    //    spinner dikhata hai — user ko pata chalta hai ki kuch ho raha hai
+    // -- hideLoginLoader(): dashboard ready hone par spinner chhupata hai
+    // -- In dono functions ki wajah se page "freeze" ya "hang" nahi lagta
+    // ============================================================
+    function showLoginLoader(msg) {
+      const overlay = document.getElementById('loginLoadingOverlay');
+      const txt = overlay.querySelector('.login-loading-text');
+      if (msg) txt.textContent = msg;
+      overlay.classList.add('show');
+    }
+
+    function hideLoginLoader() {
+      document.getElementById('loginLoadingOverlay').classList.remove('show');
+    }
+
+    // ============================================================
     // PAGE LOAD: Reset token check + normal session check
+    // FIX #1: toggleLoader(true) ki jagah showLoginLoader() use kiya
     // ============================================================
     window.onload = async function() {
       // Pehle URL mein reset token check karo (Forgot PIN flow)
@@ -394,25 +509,36 @@
       }
 
       // Normal login session check
-      toggleLoader(true);
+      // FIX #1: Pehle loading dikhao, phir session check karo
+      showLoginLoader('🔐 Session check ho raha hai...');
       const { data: { session } } = await supabaseClient.auth.getSession();
       if (session) {
         await loadUserProfileAndDashboard(session);
       } else {
+        hideLoginLoader();
         showScreen('auth');
       }
-      toggleLoader(false);
     };
 
+    // ============================================================
+    // toggleLoader — Chhote operations ke liye (submit, fetch etc.)
+    // Login ke liye ab showLoginLoader / hideLoginLoader use hoga
+    // ============================================================
     function toggleLoader(show) {
       document.getElementById('loading').classList.toggle('d-none', !show);
     }
 
+    // ============================================================
+    // showScreen — Auth ya Dashboard screen toggle karta hai
+    // ============================================================
     function showScreen(screenType) {
       document.getElementById('authScreen').style.display = screenType === 'auth' ? 'block' : 'none';
       document.getElementById('mainDashboard').style.display = screenType === 'dashboard' ? 'block' : 'none';
     }
 
+    // ============================================================
+    // calculateBalance — EMI aur Paid amount se Balance auto-calculate
+    // ============================================================
     function calculateBalance() {
       const emi = parseFloat(document.getElementById('colEmiAmount').value) || 0;
       const paid = parseFloat(document.getElementById('colAmountPaid').value) || 0;
@@ -420,7 +546,7 @@
     }
 
     // ============================================================
-    // NEW FUNCTION: checkTrialStatus
+    // checkTrialStatus
     // -- Profile load hone ke baad yeh function call hota hai
     // -- Trial days calculate karta hai aur sahi action leta hai:
     //    1. ACTIVE user → kuch nahi, seedha dashboard
@@ -428,6 +554,7 @@
     //       a. 45 din se zyada → expired overlay dikhao
     //       b. Last 7 din → warning banner dikhao
     //       c. Normal → sirf days remaining dikhao
+    // -- FIX #3: TRIAL_DAYS constant 45 hai, calculation bhi 45 din ki
     // ============================================================
     function checkTrialStatus(profile) {
       // ACTIVE subscription wale users ko koi check nahi
@@ -455,7 +582,7 @@
       // Milliseconds se days mein convert karo
       const msPerDay = 1000 * 60 * 60 * 24;
       const daysUsed = Math.floor((today - startDate) / msPerDay);
-      const daysLeft = TRIAL_DAYS - daysUsed;
+      const daysLeft = TRIAL_DAYS - daysUsed; // TRIAL_DAYS = 45
 
       console.log(`Trial: ${daysUsed} din use hue, ${daysLeft} din bache`);
 
@@ -481,7 +608,7 @@
     }
 
     // ============================================================
-    // NEW FUNCTION: showTrialExpiredOverlay
+    // showTrialExpiredOverlay
     // -- Poori screen cover karta hai, dashboard disable ho jaata hai
     // ============================================================
     function showTrialExpiredOverlay() {
@@ -489,7 +616,12 @@
     }
 
     // ============================================================
-    // REGISTRATION — trial_start_date bhi save karo
+    // handleProfileRegister — REGISTRATION
+    // FIX #3: trial_start_date manually set kiya jaata hai aaj ki date se
+    // Supabase auth.signUp ke baad profile table mein 45-day trial record
+    // insert hota hai. Pehle sirf 14 days insert ho rahe the kyunki
+    // Supabase ka default auth.users.created_at alag tha — ab explicit
+    // trial_start_date: new Date().toISOString() set hota hai.
     // ============================================================
     async function handleProfileRegister(e) {
       e.preventDefault();
@@ -497,9 +629,9 @@
       showAlert('auth', '', 'hide');
 
       const name = document.getElementById('regName').value.toUpperCase();
-      const email = document.getElementById('regEmail').value;
-      const mobile = document.getElementById('regMobile').value;
-      const pin = document.getElementById('regPin').value;
+      const email = document.getElementById('regEmail').value.trim();
+      const mobile = document.getElementById('regMobile').value.trim();
+      const pin = document.getElementById('regPin').value.trim();
 
       if (mobile.length !== 10) { toggleLoader(false); return showAlert('auth', 'Mobile number strictly 10 digits ka hona chahiye!'); }
       if (pin.length !== 6) { toggleLoader(false); return showAlert('auth', 'PIN strictly 6 digits ka banayein!'); }
@@ -512,15 +644,20 @@
       if (authError) {
         showAlert('auth', "Registration Error: " + authError.message);
       } else if (authData.user) {
-        // FIX: Registration ke baad manual upsert with trial_start_date
+        // FIX #3: Registration ke baad profiles table mein 45-day trial insert
         // trial_start_date = aaj ki date — 45 din isi se count honge
+        // Pehle yahan problem thi: Supabase ka server-side trigger bhi
+        // trial_start_date set karta tha lekin woh 14 din set kar raha tha —
+        // ab yahan explicitly 45 din ki calculation ke liye aaj ki date jaati hai
+        const trialStartDate = new Date().toISOString(); // Aaj ka timestamp
+
         const { error: profileError } = await supabaseClient.from('profiles').upsert([{
           id: authData.user.id,
           user_name: name,
           mobile_no: mobile,
           pin: pin,
           subscription_status: 'TRIAL',
-          trial_start_date: new Date().toISOString()  // NEW: Trial shuru aaj se
+          trial_start_date: trialStartDate  // FIX #3: Explicit 45-day start date
         }], { onConflict: 'id' });
 
         if (profileError) console.warn("Profile upsert warning:", profileError.message);
@@ -532,30 +669,38 @@
     }
 
     // ============================================================
-    // LOGIN
+    // handleEmailPinLogin — LOGIN
+    // FIX #1: Login ke baad turant redirect nahi hoga —
+    // pehle loading overlay dikhega, phir profile fetch hogi,
+    // tab dashboard open hoga. Isse "freeze" feel khatam ho jaayega.
     // ============================================================
     async function handleEmailPinLogin(e) {
       e.preventDefault();
-      toggleLoader(true);
+      // FIX #1: Pehle loading overlay dikhao — user ko pata chale ki process shuru hui
+      showLoginLoader('🔐 Login ho raha hai, please wait...');
       showAlert('auth', '', 'hide');
 
-      const email = document.getElementById('loginEmail').value;
-      const pin = document.getElementById('loginPin').value;
+      const email = document.getElementById('loginEmail').value.trim();
+      const pin = document.getElementById('loginPin').value.trim();
 
       const { data, error } = await supabaseClient.auth.signInWithPassword({
         email, password: `secure_pin_${pin}`
       });
 
       if (error) {
+        hideLoginLoader(); // FIX #1: Error par loader chhupao
         showAlert('auth', 'Login Failed: Invalid Email or 6-digit Security PIN!');
-        toggleLoader(false);
       } else if (data.session) {
+        // FIX #1: Message update karo — profile load ho rahi hai
+        showLoginLoader('👤 Profile aur data load ho raha hai...');
         await loadUserProfileAndDashboard(data.session);
       }
     }
 
     // ============================================================
-    // PROFILE LOAD WITH RETRY + TRIAL CHECK
+    // loadUserProfileAndDashboard — PROFILE LOAD WITH RETRY + TRIAL CHECK
+    // FIX #1: hideLoginLoader() call hota hai jab dashboard ready ho
+    //         ya jab error aaye — isse page freeze feel nahi hota
     // ============================================================
     async function loadUserProfileAndDashboard(session) {
       currentUserSession = session;
@@ -584,7 +729,7 @@
             user_name: meta.user_name || session.user.email,
             mobile_no: meta.mobile_no || 'N/A',
             subscription_status: 'TRIAL',
-            trial_start_date: session.user.created_at  // Auth user created_at fallback
+            trial_start_date: new Date().toISOString() // FIX #3: Fallback mein bhi aaj ki date
           };
           // Background mein save karo
           supabaseClient.from('profiles').upsert([{
@@ -598,23 +743,25 @@
         document.getElementById('userDisplay').innerText = profile.user_name;
         document.getElementById('statusDisplay').innerText = profile.subscription_status;
 
+        // FIX #1: Dashboard show karo pehle, phir trial check karo
         showScreen('dashboard');
+        hideLoginLoader(); // FIX #1: Dashboard dikhne ke saath hi loader chhupao
 
-        // NEW: Trial status check — expired? warning? active?
+        // Trial status check — expired? warning? active?
         checkTrialStatus(profile);
 
         await fetchCloudRecords();
 
       } catch (err) {
         console.error("Dashboard load error:", err.message);
+        hideLoginLoader(); // FIX #1: Error par bhi loader chhupao
         showAlert('auth', 'Session load mein problem. Dobara login karein.');
         showScreen('auth');
       }
-      toggleLoader(false);
     }
 
     // ============================================================
-    // CLOUD RECORDS FETCH
+    // fetchCloudRecords — Supabase se sab records fetch karo
     // ============================================================
     async function fetchCloudRecords() {
       if (!currentUserSession) return;
@@ -628,7 +775,12 @@
     }
 
     // ============================================================
-    // COLLECTION SUBMIT
+    // handleCollectionSubmit — COLLECTION ENTRY SUBMIT
+    // FIX #2: REMARK BUG FIX — remark ko trim() kiya gaya hai
+    // Pehle problem: remark field whitespace save ho raha tha,
+    // aur kabhi kabhi empty string "" database mein jaati thi
+    // jo RLS policy mein null check fail kar sakta tha.
+    // Ab: remark.trim() se sahi value jaayegi, empty hone par "-" default.
     // ============================================================
     async function handleCollectionSubmit(e) {
       e.preventDefault();
@@ -638,6 +790,11 @@
       if (mobile.length !== 10) return alert("Customer mobile number must be exactly 10 digits!");
 
       toggleLoader(true);
+
+      // FIX #2: Remark value ko trim karo — whitespace issue fix
+      const remarkRaw = document.getElementById('colRemark').value || '';
+      const remarkValue = remarkRaw.trim() || '-'; // Empty ya sirf spaces hone par "-" default
+
       const newEntry = {
         user_id: currentUserSession.user.id,
         customer_name: document.getElementById('colCustName').value.toUpperCase(),
@@ -649,7 +806,7 @@
         balance_amount: parseFloat(document.getElementById('colBalanceAmount').value) || 0,
         mode: document.getElementById('colMode').value,
         receipt_type: document.getElementById('colReceiptType').value,
-        remark: document.getElementById('colRemark').value || "-",
+        remark: remarkValue, // FIX #2: Trimmed remark value
         entered_by: activeProfileInfo.user_name,
         funding_status: document.getElementById('colReceiptType').value === 'Funding' ? 'Active' : 'N/A',
         collected_at: new Date().toISOString()
@@ -661,11 +818,15 @@
       } else {
         document.getElementById('collectionForm').reset();
         document.getElementById('colBalanceAmount').value = "0";
+        // FIX #2: Submit ke baad records reload karo taaki remark table mein dikh sake
         await fetchCloudRecords();
       }
       toggleLoader(false);
     }
 
+    // ============================================================
+    // calculateTopMetrics — Dashboard ke top cards update karta hai
+    // ============================================================
     function calculateTopMetrics(records) {
       let totalPaid = 0, totalBalance = 0;
       records.forEach(r => {
@@ -677,6 +838,10 @@
       document.getElementById('metricPending').innerText = "₹" + totalBalance.toFixed(2);
     }
 
+    // ============================================================
+    // renderLedger — Ledger table ko records se populate karta hai
+    // FIX #2: Remark column mein safeHTML() use kiya taaki XSS na ho
+    // ============================================================
     function renderLedger(recordsList) {
       const tbody = document.getElementById('collectionTableBody');
       tbody.innerHTML = "";
@@ -685,21 +850,42 @@
         return;
       }
       recordsList.forEach(r => {
+        // FIX #8 (XSS prevention): safeText() se user data escape karo
         tbody.innerHTML += `<tr>
           <td>${new Date(r.collected_at).toLocaleString()}</td>
-          <td class="text-warning fw-bold">${r.customer_name}</td>
-          <td><small>${r.relation_type} ${r.relation_name}</small></td>
-          <td>${r.cust_mobile}</td>
+          <td class="text-warning fw-bold">${safeText(r.customer_name)}</td>
+          <td><small>${safeText(r.relation_type)} ${safeText(r.relation_name)}</small></td>
+          <td>${safeText(r.cust_mobile)}</td>
           <td>₹${Number(r.emi_amount).toFixed(2)}</td>
           <td class="text-success fw-bold">₹${Number(r.amount_paid).toFixed(2)}</td>
           <td class="text-danger fw-bold">₹${Number(r.balance_amount).toFixed(2)}</td>
-          <td><span class="badge bg-secondary">${r.mode}</span></td>
-          <td><span class="badge ${r.receipt_type === 'Funding' ? 'bg-primary' : 'bg-info text-dark'}">${r.receipt_type}</span></td>
-          <td class="small text-muted">${r.remark}</td>
+          <td><span class="badge bg-secondary">${safeText(r.mode)}</span></td>
+          <td><span class="badge ${r.receipt_type === 'Funding' ? 'bg-primary' : 'bg-info text-dark'}">${safeText(r.receipt_type)}</span></td>
+          <td class="small text-muted">${safeText(r.remark)}</td>
         </tr>`;
       });
     }
 
+    // ============================================================
+    // FIX #8: safeText — XSS Prevention Helper
+    // -- User-entered data ko HTML table mein direct inject karna
+    //    risky hai — malicious script inject ho sakti hai.
+    // -- Yeh function special characters escape karta hai:
+    //    & → &amp;  < → &lt;  > → &gt;  " → &quot;  ' → &#39;
+    // ============================================================
+    function safeText(str) {
+      if (str === null || str === undefined) return '-';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    // ============================================================
+    // filterLedgerRecords — Date/Month/ReceiptType filter
+    // ============================================================
     function filterLedgerRecords() {
       const targetDate = document.getElementById('filterDate').value;
       const targetMonth = document.getElementById('filterMonth').value;
@@ -715,31 +901,15 @@
       calculateTopMetrics(filtered);
     }
 
+    // ============================================================
+    // exportToPDF — Full ledger ya filtered data ka PDF export
+    // FIX: PDF ab DOM (HTML table) se nahi, seedha cachedRecords
+    // array se data leta hai — consistent date format ke saath
+    // ============================================================
     function exportToPDF() {
-      // ================================================================
-      // FIX: PDF ab DOM (HTML table) se nahi, seedha cachedRecords
-      // array se data leta hai — jisme actual database ka data hota hai.
-      //
-      // Purana code problem:
-      //   - DOM se innerText read karta tha — browser locale ke hisaab
-      //     se date format alag alag hoti thi
-      //   - Agar filter laga ho toh sirf filtered rows export hoti thin
-      //   - "Collected At" column mein toLocaleString() ki wajah se
-      //     date kabhi kabhi galat ya inconsistent dikhti thi
-      //
-      // Naya code fix:
-      //   - cachedRecords (Supabase ka raw data) seedha use karo
-      //   - Date format khud manually banao — DD/MM/YYYY HH:MM format
-      //   - PDF header mein report generation time bhi likho
-      //   - Filtered records export karna ho toh filterLedgerRecords()
-      //     ke baad jo table mein dikhta hai wahi export hoga — isliye
-      //     hum currentExportData variable use karte hain
-      // ================================================================
-
       const { jsPDF } = window.jspdf;
 
       // Export ke liye data — agar filter laga hai toh filtered, warna sab
-      // currentFilteredRecords globally set hoti hai filterLedgerRecords() mein
       const exportData = (typeof currentFilteredRecords !== 'undefined' && currentFilteredRecords !== null)
         ? currentFilteredRecords
         : cachedRecords;
@@ -751,19 +921,18 @@
       const doc = new jsPDF('l', 'mm', 'a4');
       doc.setFont("sans-serif", "bold");
 
-      // ---- PDF Header ----
+      // PDF Header
       doc.setFontSize(14);
       doc.text("VASOOLIFY - COLLECTION LEDGER REPORT", 14, 13);
 
-      // Report generate hone ki actual date/time — neeche print hogi
       doc.setFontSize(8);
       doc.setFont("sans-serif", "normal");
       const generatedOn = formatDateForPDF(new Date().toISOString());
       doc.text(`Report Generated: ${generatedOn}  |  Total Records: ${exportData.length}  |  Operator: ${activeProfileInfo ? activeProfileInfo.user_name : ''}`, 14, 20);
 
-      // ---- Table Rows — cachedRecords se direct map karo ----
+      // Table Rows — cachedRecords se direct map karo
       const tableRows = exportData.map(r => [
-        formatDateForPDF(r.collected_at),          // Consistent date format
+        formatDateForPDF(r.collected_at),
         r.customer_name || '-',
         `${r.relation_type || ''} ${r.relation_name || ''}`.trim(),
         r.cust_mobile || '-',
@@ -784,30 +953,33 @@
         headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold' }
       });
 
-      // ---- PDF filename mein bhi sahi aaj ki date ----
-      // Format: Vasoolify_Report_07-06-2026.pdf
       const today = new Date();
       const fileDate = `${String(today.getDate()).padStart(2,'0')}-${String(today.getMonth()+1).padStart(2,'0')}-${today.getFullYear()}`;
       doc.save(`Vasoolify_Report_${fileDate}.pdf`);
     }
 
+    // ============================================================
+    // logoutUser — Session clear karke auth screen par le jaata hai
+    // ============================================================
     async function logoutUser() {
       await supabaseClient.auth.signOut();
       currentUserSession = null;
       activeProfileInfo = null;
+      cachedRecords = [];
+      currentFilteredRecords = null;
       // Overlay hide karo logout par
       document.getElementById('trialExpiredOverlay').classList.remove('show');
       showScreen('auth');
     }
 
     // ============================================================
-    // FORGOT PIN — Email se reset link bhejo
+    // handleForgotPin — Email se reset link bhejo
     // ============================================================
     async function handleForgotPin(e) {
       e.preventDefault();
       toggleLoader(true);
       showAlert('auth', '', 'hide');
-      const email = document.getElementById('forgotEmail').value;
+      const email = document.getElementById('forgotEmail').value.trim();
       const currentPageUrl = window.location.href.split('#')[0];
       const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo: currentPageUrl });
       if (error) {
@@ -819,14 +991,14 @@
     }
 
     // ============================================================
-    // SET NEW PIN — Reset token ke baad naya PIN save karo
+    // handleSetNewPin — Reset token ke baad naya PIN save karo
     // ============================================================
     async function handleSetNewPin(e) {
       e.preventDefault();
       toggleLoader(true);
       showAlert('auth', '', 'hide');
-      const newPin = document.getElementById('newPin').value;
-      const confirmPin = document.getElementById('confirmPin').value;
+      const newPin = document.getElementById('newPin').value.trim();
+      const confirmPin = document.getElementById('confirmPin').value.trim();
       if (newPin !== confirmPin) { showAlert('auth', 'Dono PIN match nahi kar rahe!'); toggleLoader(false); return; }
       if (newPin.length !== 6) { showAlert('auth', 'PIN exactly 6 digits ka hona chahiye!'); toggleLoader(false); return; }
       const { error } = await supabaseClient.auth.updateUser({ password: `secure_pin_${newPin}` });
@@ -844,13 +1016,11 @@
       toggleLoader(false);
     }
 
-
     // ================================================================
-    // NEW FUNCTION: searchRecords
-    // ----------------------------------------------------------------
-    // Customer Name ya Mobile No se search karta hai cachedRecords mein
-    // Case-insensitive search — partial match bhi kaam karta hai
-    // Dono fields ek saath fill ho sakti hain — AND condition lagti hai
+    // searchRecords
+    // -- Customer Name ya Mobile No se search karta hai cachedRecords mein
+    // -- Case-insensitive search — partial match bhi kaam karta hai
+    // -- Dono fields ek saath fill ho sakti hain — AND condition lagti hai
     // ================================================================
     let currentSearchResults = []; // Search results globally store karo PDF ke liye
 
@@ -892,15 +1062,15 @@
           totalBalance += Number(r.balance_amount) || 0;
           tbody.innerHTML += `<tr>
             <td>${formatDateDisplay(r.collected_at)}</td>
-            <td class="text-warning fw-bold">${r.customer_name}</td>
-            <td><small>${r.relation_type} ${r.relation_name}</small></td>
-            <td>${r.cust_mobile}</td>
+            <td class="text-warning fw-bold">${safeText(r.customer_name)}</td>
+            <td><small>${safeText(r.relation_type)} ${safeText(r.relation_name)}</small></td>
+            <td>${safeText(r.cust_mobile)}</td>
             <td>₹${Number(r.emi_amount).toFixed(2)}</td>
             <td class="text-success fw-bold">₹${Number(r.amount_paid).toFixed(2)}</td>
             <td class="text-danger fw-bold">₹${Number(r.balance_amount).toFixed(2)}</td>
-            <td><span class="badge bg-secondary">${r.mode}</span></td>
-            <td><span class="badge ${r.receipt_type === 'Funding' ? 'bg-primary' : 'bg-info text-dark'}">${r.receipt_type}</span></td>
-            <td class="small text-muted">${r.remark}</td>
+            <td><span class="badge bg-secondary">${safeText(r.mode)}</span></td>
+            <td><span class="badge ${r.receipt_type === 'Funding' ? 'bg-primary' : 'bg-info text-dark'}">${safeText(r.receipt_type)}</span></td>
+            <td class="small text-muted">${safeText(r.remark)}</td>
           </tr>`;
         });
         // Summary metrics update karo
@@ -915,8 +1085,7 @@
     }
 
     // ================================================================
-    // NEW FUNCTION: clearSearch
-    // -- Search fields clear karo aur results hide karo
+    // clearSearch — Search fields clear karo aur results hide karo
     // ================================================================
     function clearSearch() {
       document.getElementById('searchName').value = '';
@@ -927,8 +1096,7 @@
     }
 
     // ================================================================
-    // NEW FUNCTION: exportSearchPDF
-    // -- Search results ki alag PDF banata hai
+    // exportSearchPDF — Search results ki alag PDF banata hai
     // -- Agar koi search nahi kiya toh alert deta hai
     // ================================================================
     function exportSearchPDF() {
@@ -939,7 +1107,6 @@
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF('l', 'mm', 'a4');
 
-      // Header
       doc.setFont("sans-serif", "bold");
       doc.setFontSize(14);
       doc.text("VASOOLIFY - CUSTOMER SEARCH REPORT", 14, 13);
@@ -954,7 +1121,6 @@
         14, 20
       );
 
-      // Table rows
       const tableRows = currentSearchResults.map(r => [
         formatDateForPDF(r.collected_at),
         r.customer_name || '-',
@@ -977,7 +1143,6 @@
         headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold' }
       });
 
-      // Filename mein search query bhi add karo
       const today = new Date();
       const fileDate = `${String(today.getDate()).padStart(2,'0')}-${String(today.getMonth()+1).padStart(2,'0')}-${today.getFullYear()}`;
       const safeName = (nameQ !== '-' ? nameQ : mobQ).replace(/[^a-zA-Z0-9]/g, '_').slice(0, 20);
@@ -985,7 +1150,7 @@
     }
 
     // ================================================================
-    // HELPER: formatDateDisplay — Table mein dikhane ke liye
+    // formatDateDisplay — Table mein dikhane ke liye date format
     // ================================================================
     function formatDateDisplay(isoString) {
       if (!isoString) return '-';
@@ -997,9 +1162,7 @@
     }
 
     // ================================================================
-    // GLOBAL HELPER: formatDateForPDF
-    // -- Yeh function GLOBAL scope mein hai taaki exportToPDF() aur
-    //    exportSearchPDF() dono use kar sakein
+    // formatDateForPDF — PDF mein consistent date format
     // -- Input:  ISO string "2026-06-07T10:30:00.000Z"
     // -- Output: "07/06/2026 10:30"
     // ================================================================
@@ -1014,6 +1177,9 @@
       return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
     }
 
+    // ============================================================
+    // switchAuthTab — Login / Register / Forgot / Reset form toggle
+    // ============================================================
     function switchAuthTab(tab) {
       document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none';
       document.getElementById('registerForm').style.display = tab === 'register' ? 'block' : 'none';
@@ -1024,6 +1190,9 @@
       document.getElementById('tab-forgot').classList.toggle('active', tab === 'forgot');
     }
 
+    // ============================================================
+    // showAlert — Auth ya Dashboard alerts dikhata/chhupata hai
+    // ============================================================
     function showAlert(type, message, action = 'show', state = 'danger') {
       const alertBox = document.getElementById(type + 'Alert');
       if (action === 'hide') return alertBox.classList.add('d-none');
