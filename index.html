@@ -240,12 +240,75 @@
             <div class="col-md-3"><label class="form-label required">EMI Amount (₹)</label><input type="number" id="colEmiAmount" class="form-control" required placeholder="0" min="0" oninput="calculateBalance()"></div>
             <div class="col-md-3"><label class="form-label required">Amount Paid (₹)</label><input type="number" id="colAmountPaid" class="form-control" required placeholder="0" min="0" oninput="calculateBalance()"></div>
             <div class="col-md-3"><label class="form-label">Balance Amount (₹)</label><input type="number" id="colBalanceAmount" class="form-control bg-dark text-warning fw-bold" readonly value="0"></div>
-            <div class="col-md-3"><label class="form-label required">Payment Mode</label><select id="colMode" class="form-select"><option value="Cash">Cash</option><option value="UPI">UPI</option></select></div>
+            <div class="col-md-3"><label class="form-label required">Payment Mode</label><select id="colMode" class="form-select"><option value="Cash">Cash</option><option value="UPI">UPI</option><option value="Others">Others</option></select></div>
             <div class="col-md-4"><label class="form-label required">Receipt Type</label><select id="colReceiptType" class="form-select"><option value="Advance">Advance</option><option value="Current Month">Current Month</option><option value="Overdue">Overdue</option><option value="Funding">Funding</option><option value="Penalty">Penalty</option><option value="Others">Others</option></select></div>
             <div class="col-md-8"><label class="form-label">Remark</label><input type="text" id="colRemark" class="form-control" placeholder="Optional collection remarks"></div>
-            <div class="col-md-12 d-flex justify-content-end mt-4"><button type="submit" class="btn btn-success px-5 py-2 fw-bold">💾 Save Entry</button></div>
+            <div class="col-md-12 d-flex justify-content-end mt-4"><button type="submit" class="btn btn-success px-5 py-2 fw-bold">💾 Save Entry To Supabase</button></div>
           </div>
         </form>
+      </div>
+
+      <!-- ================================================================
+           NEW: CUSTOMER SEARCH CARD
+           -- Mobile No ya Customer Name se search karo
+           -- Results table mein dikhenge aur PDF download hogi
+      ================================================================ -->
+      <div class="card p-4 mb-4">
+        <h4 class="mb-3 text-warning fw-bold border-bottom border-secondary pb-2">🔍 Customer Search</h4>
+        <div class="row g-3 align-items-end">
+          <div class="col-md-4">
+            <label class="form-label">Search by Customer Name</label>
+            <input type="text" id="searchName" class="form-control" placeholder="Customer naam likhein..."
+              oninput="searchRecords()">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Search by Mobile No</label>
+            <input type="number" id="searchMobile" class="form-control" placeholder="Mobile number likhein..."
+              oninput="searchRecords()">
+          </div>
+          <div class="col-md-2">
+            <button onclick="clearSearch()" class="btn btn-secondary w-100 fw-bold">🔄 Clear</button>
+          </div>
+          <div class="col-md-2">
+            <button onclick="exportSearchPDF()" class="btn btn-danger w-100 fw-bold">📥 PDF Download</button>
+          </div>
+        </div>
+        <!-- Search results summary -->
+        <div id="searchSummary" class="mt-3 d-none">
+          <div class="alert alert-info mb-2 py-2 small fw-bold" id="searchResultInfo"></div>
+          <div class="table-responsive">
+            <table class="table table-dark table-hover border border-secondary mb-0">
+              <thead>
+                <tr>
+                  <th>Collected At</th><th>Customer Name</th><th>Relation</th><th>Mobile</th>
+                  <th>EMI (₹)</th><th>Paid (₹)</th><th>Balance (₹)</th><th>Mode</th><th>Receipt Type</th><th>Remark</th>
+                </tr>
+              </thead>
+              <tbody id="searchTableBody"></tbody>
+            </table>
+          </div>
+          <!-- Search result totals -->
+          <div class="row g-2 mt-2">
+            <div class="col-md-4">
+              <div class="card p-2 border-start border-primary">
+                <div class="small text-muted">Total Paid</div>
+                <div class="fw-bold text-primary" id="searchTotalPaid">₹0.00</div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="card p-2 border-start border-danger">
+                <div class="small text-muted">Total Balance</div>
+                <div class="fw-bold text-danger" id="searchTotalBalance">₹0.00</div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="card p-2 border-start border-success">
+                <div class="small text-muted">Total Records</div>
+                <div class="fw-bold text-success" id="searchTotalCount">0</div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="card p-4">
@@ -304,6 +367,9 @@
     let cachedRecords = [];
     let activeProfileInfo = null;
     let currentUserSession = null;
+    // FIX PDF DATE BUG: Ab globally track hoga ki table mein abhi kaunse records hain
+    // (filter/search ke baad bhi) — exportToPDF() DOM ki jagah yahi use karega
+    let currentFilteredRecords = null;
 
     // ============================================================
     // PAGE LOAD: Reset token check + normal session check
@@ -642,27 +708,101 @@
       if (targetDate) filtered = filtered.filter(r => r.collected_at.startsWith(targetDate));
       if (targetMonth) filtered = filtered.filter(r => r.collected_at.substring(5, 7) === targetMonth);
       if (targetType) filtered = filtered.filter(r => r.receipt_type === targetType);
+      // FIX PDF DATE BUG: Filter ke baad jo records hain unhe globally save karo
+      // taaki exportToPDF() sahi data use kare, DOM se nahi
+      currentFilteredRecords = filtered;
       renderLedger(filtered);
       calculateTopMetrics(filtered);
     }
 
     function exportToPDF() {
+      // ================================================================
+      // FIX: PDF ab DOM (HTML table) se nahi, seedha cachedRecords
+      // array se data leta hai — jisme actual database ka data hota hai.
+      //
+      // Purana code problem:
+      //   - DOM se innerText read karta tha — browser locale ke hisaab
+      //     se date format alag alag hoti thi
+      //   - Agar filter laga ho toh sirf filtered rows export hoti thin
+      //   - "Collected At" column mein toLocaleString() ki wajah se
+      //     date kabhi kabhi galat ya inconsistent dikhti thi
+      //
+      // Naya code fix:
+      //   - cachedRecords (Supabase ka raw data) seedha use karo
+      //   - Date format khud manually banao — DD/MM/YYYY HH:MM format
+      //   - PDF header mein report generation time bhi likho
+      //   - Filtered records export karna ho toh filterLedgerRecords()
+      //     ke baad jo table mein dikhta hai wahi export hoga — isliye
+      //     hum currentExportData variable use karte hain
+      // ================================================================
+
       const { jsPDF } = window.jspdf;
+
+      // Export ke liye data — agar filter laga hai toh filtered, warna sab
+      // currentFilteredRecords globally set hoti hai filterLedgerRecords() mein
+      const exportData = (typeof currentFilteredRecords !== 'undefined' && currentFilteredRecords !== null)
+        ? currentFilteredRecords
+        : cachedRecords;
+
+      if (!exportData || exportData.length === 0) {
+        return alert("Export karne ke liye koi records nahi hain!");
+      }
+
+      // ---- Date format helper function ----
+      // Input: ISO string "2026-06-07T10:30:00Z"
+      // Output: "07/06/2026 10:30" — clear aur consistent format
+      function formatDateForPDF(isoString) {
+        if (!isoString) return '-';
+        const d = new Date(isoString);
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0'); // Month 0-indexed hai
+        const yyyy = d.getFullYear();
+        const hh = String(d.getHours()).padStart(2, '0');
+        const min = String(d.getMinutes()).padStart(2, '0');
+        return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
+      }
+
       const doc = new jsPDF('l', 'mm', 'a4');
       doc.setFont("sans-serif", "bold");
-      doc.text("VASOOLIFY - COLLECTION LEDGER REPORT", 14, 15);
-      const tableRows = [];
-      const rows = document.querySelectorAll("#collectionTableBody tr");
-      if (rows[0] && rows[0].innerText.includes("No data")) return alert("No logs to export!");
-      rows.forEach(row => {
-        const tdList = row.querySelectorAll("td");
-        if (tdList.length > 1) tableRows.push(Array.from(tdList).map(td => td.innerText.replace(/₹/g, "Rs. ")));
-      });
+
+      // ---- PDF Header ----
+      doc.setFontSize(14);
+      doc.text("VASOOLIFY - COLLECTION LEDGER REPORT", 14, 13);
+
+      // Report generate hone ki actual date/time — neeche print hogi
+      doc.setFontSize(8);
+      doc.setFont("sans-serif", "normal");
+      const generatedOn = formatDateForPDF(new Date().toISOString());
+      doc.text(`Report Generated: ${generatedOn}  |  Total Records: ${exportData.length}  |  Operator: ${activeProfileInfo ? activeProfileInfo.user_name : ''}`, 14, 20);
+
+      // ---- Table Rows — cachedRecords se direct map karo ----
+      const tableRows = exportData.map(r => [
+        formatDateForPDF(r.collected_at),          // Consistent date format
+        r.customer_name || '-',
+        `${r.relation_type || ''} ${r.relation_name || ''}`.trim(),
+        r.cust_mobile || '-',
+        `Rs. ${Number(r.emi_amount || 0).toFixed(2)}`,
+        `Rs. ${Number(r.amount_paid || 0).toFixed(2)}`,
+        `Rs. ${Number(r.balance_amount || 0).toFixed(2)}`,
+        r.mode || '-',
+        r.receipt_type || '-',
+        r.remark || '-'
+      ]);
+
       doc.autoTable({
         head: [['Collected At', 'Customer Name', 'Relation', 'Mobile', 'EMI', 'Paid', 'Balance', 'Mode', 'Receipt Type', 'Remark']],
-        body: tableRows, startY: 25, theme: 'grid', styles: { fontSize: 8 }
+        body: tableRows,
+        startY: 24,
+        theme: 'grid',
+        styles: { fontSize: 7.5 },
+        headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold' }
       });
-      doc.save(`Report_${new Date().toISOString().slice(0, 10)}.pdf`);
+
+      // ---- PDF filename mein bhi sahi aaj ki date ----
+      // Format: Vasoolify_Report_07-06-2026.pdf
+      const today = new Date();
+      const fileDate = `${String(today.getDate()).padStart(2,'0')}-${String(today.getMonth()+1).padStart(2,'0')}-${today.getFullYear()}`;
+      doc.save(`Vasoolify_Report_${fileDate}.pdf`);
     }
 
     async function logoutUser() {
@@ -716,6 +856,158 @@
         setTimeout(() => switchAuthTab('login'), 2000);
       }
       toggleLoader(false);
+    }
+
+
+    // ================================================================
+    // NEW FUNCTION: searchRecords
+    // ----------------------------------------------------------------
+    // Customer Name ya Mobile No se search karta hai cachedRecords mein
+    // Case-insensitive search — partial match bhi kaam karta hai
+    // Dono fields ek saath fill ho sakti hain — AND condition lagti hai
+    // ================================================================
+    let currentSearchResults = []; // Search results globally store karo PDF ke liye
+
+    function searchRecords() {
+      const nameQuery = (document.getElementById('searchName').value || '').trim().toUpperCase();
+      const mobileQuery = (document.getElementById('searchMobile').value || '').trim();
+
+      // Dono empty hain toh results hide karo
+      if (!nameQuery && !mobileQuery) {
+        document.getElementById('searchSummary').classList.add('d-none');
+        currentSearchResults = [];
+        return;
+      }
+
+      // cachedRecords mein se filter karo
+      let results = cachedRecords.filter(r => {
+        const nameMatch = nameQuery
+          ? (r.customer_name || '').toUpperCase().includes(nameQuery)
+          : true;
+        const mobileMatch = mobileQuery
+          ? (r.cust_mobile || '').toString().includes(mobileQuery)
+          : true;
+        return nameMatch && mobileMatch; // Dono conditions satisfy honi chahiye
+      });
+
+      currentSearchResults = results; // PDF ke liye save karo
+
+      // Results table render karo
+      const tbody = document.getElementById('searchTableBody');
+      tbody.innerHTML = '';
+
+      if (results.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center text-warning py-3">Koi record nahi mila is search ke liye.</td></tr>';
+        document.getElementById('searchResultInfo').innerText = 'Koi result nahi mila.';
+      } else {
+        let totalPaid = 0, totalBalance = 0;
+        results.forEach(r => {
+          totalPaid += Number(r.amount_paid) || 0;
+          totalBalance += Number(r.balance_amount) || 0;
+          tbody.innerHTML += `<tr>
+            <td>${formatDateDisplay(r.collected_at)}</td>
+            <td class="text-warning fw-bold">${r.customer_name}</td>
+            <td><small>${r.relation_type} ${r.relation_name}</small></td>
+            <td>${r.cust_mobile}</td>
+            <td>₹${Number(r.emi_amount).toFixed(2)}</td>
+            <td class="text-success fw-bold">₹${Number(r.amount_paid).toFixed(2)}</td>
+            <td class="text-danger fw-bold">₹${Number(r.balance_amount).toFixed(2)}</td>
+            <td><span class="badge bg-secondary">${r.mode}</span></td>
+            <td><span class="badge ${r.receipt_type === 'Funding' ? 'bg-primary' : 'bg-info text-dark'}">${r.receipt_type}</span></td>
+            <td class="small text-muted">${r.remark}</td>
+          </tr>`;
+        });
+        // Summary metrics update karo
+        document.getElementById('searchTotalPaid').innerText = '₹' + totalPaid.toFixed(2);
+        document.getElementById('searchTotalBalance').innerText = '₹' + totalBalance.toFixed(2);
+        document.getElementById('searchTotalCount').innerText = results.length + ' Records';
+        document.getElementById('searchResultInfo').innerText =
+          `🔍 "${nameQuery || mobileQuery}" ke liye ${results.length} record(s) mile.`;
+      }
+
+      document.getElementById('searchSummary').classList.remove('d-none');
+    }
+
+    // ================================================================
+    // NEW FUNCTION: clearSearch
+    // -- Search fields clear karo aur results hide karo
+    // ================================================================
+    function clearSearch() {
+      document.getElementById('searchName').value = '';
+      document.getElementById('searchMobile').value = '';
+      document.getElementById('searchSummary').classList.add('d-none');
+      document.getElementById('searchTableBody').innerHTML = '';
+      currentSearchResults = [];
+    }
+
+    // ================================================================
+    // NEW FUNCTION: exportSearchPDF
+    // -- Search results ki alag PDF banata hai
+    // -- Agar koi search nahi kiya toh alert deta hai
+    // ================================================================
+    function exportSearchPDF() {
+      if (!currentSearchResults || currentSearchResults.length === 0) {
+        return alert("Pehle koi search karein, phir PDF download karein!");
+      }
+
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF('l', 'mm', 'a4');
+
+      // Header
+      doc.setFont("sans-serif", "bold");
+      doc.setFontSize(14);
+      doc.text("VASOOLIFY - CUSTOMER SEARCH REPORT", 14, 13);
+
+      doc.setFontSize(8);
+      doc.setFont("sans-serif", "normal");
+      const nameQ = document.getElementById('searchName').value || '-';
+      const mobQ = document.getElementById('searchMobile').value || '-';
+      const genTime = formatDateForPDF(new Date().toISOString());
+      doc.text(
+        `Search: Name="${nameQ}" | Mobile="${mobQ}" | Records: ${currentSearchResults.length} | Generated: ${genTime}`,
+        14, 20
+      );
+
+      // Table rows
+      const tableRows = currentSearchResults.map(r => [
+        formatDateForPDF(r.collected_at),
+        r.customer_name || '-',
+        `${r.relation_type || ''} ${r.relation_name || ''}`.trim(),
+        r.cust_mobile || '-',
+        `Rs. ${Number(r.emi_amount || 0).toFixed(2)}`,
+        `Rs. ${Number(r.amount_paid || 0).toFixed(2)}`,
+        `Rs. ${Number(r.balance_amount || 0).toFixed(2)}`,
+        r.mode || '-',
+        r.receipt_type || '-',
+        r.remark || '-'
+      ]);
+
+      doc.autoTable({
+        head: [['Collected At', 'Customer Name', 'Relation', 'Mobile', 'EMI', 'Paid', 'Balance', 'Mode', 'Receipt Type', 'Remark']],
+        body: tableRows,
+        startY: 24,
+        theme: 'grid',
+        styles: { fontSize: 7.5 },
+        headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold' }
+      });
+
+      // Filename mein search query bhi add karo
+      const today = new Date();
+      const fileDate = `${String(today.getDate()).padStart(2,'0')}-${String(today.getMonth()+1).padStart(2,'0')}-${today.getFullYear()}`;
+      const safeName = (nameQ !== '-' ? nameQ : mobQ).replace(/[^a-zA-Z0-9]/g, '_').slice(0, 20);
+      doc.save(`Vasoolify_Search_${safeName}_${fileDate}.pdf`);
+    }
+
+    // ================================================================
+    // HELPER: formatDateDisplay — Table mein dikhane ke liye
+    // ================================================================
+    function formatDateDisplay(isoString) {
+      if (!isoString) return '-';
+      const d = new Date(isoString);
+      return d.toLocaleString('en-IN', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: true
+      });
     }
 
     function switchAuthTab(tab) {
