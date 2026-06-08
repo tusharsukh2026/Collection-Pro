@@ -243,7 +243,7 @@
             <div class="col-md-3"><label class="form-label required">Payment Mode</label><select id="colMode" class="form-select"><option value="Cash">Cash</option><option value="UPI">UPI</option><option value="Others">Others</option></select></div>
             <div class="col-md-4"><label class="form-label required">Receipt Type</label><select id="colReceiptType" class="form-select"><option value="Advance">Advance</option><option value="Current Month">Current Month</option><option value="Overdue">Overdue</option><option value="Funding">Funding</option><option value="Penalty">Penalty</option><option value="Others">Others</option></select></div>
             <div class="col-md-8"><label class="form-label">Remark</label><input type="text" id="colRemark" class="form-control" placeholder="Optional collection remarks"></div>
-            <div class="col-md-12 d-flex justify-content-end mt-4"><button type="submit" class="btn btn-success px-5 py-2 fw-bold">💾 Save Entry To Supabase</button></div>
+            <div class="col-md-12 d-flex justify-content-end mt-4"><button type="submit" class="btn btn-success px-5 py-2 fw-bold">💾 Save Entry</button></div>
           </div>
         </form>
       </div>
@@ -748,20 +748,6 @@
         return alert("Export karne ke liye koi records nahi hain!");
       }
 
-      // ---- Date format helper function ----
-      // Input: ISO string "2026-06-07T10:30:00Z"
-      // Output: "07/06/2026 10:30" — clear aur consistent format
-      function formatDateForPDF(isoString) {
-        if (!isoString) return '-';
-        const d = new Date(isoString);
-        const dd = String(d.getDate()).padStart(2, '0');
-        const mm = String(d.getMonth() + 1).padStart(2, '0'); // Month 0-indexed hai
-        const yyyy = d.getFullYear();
-        const hh = String(d.getHours()).padStart(2, '0');
-        const min = String(d.getMinutes()).padStart(2, '0');
-        return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
-      }
-
       const doc = new jsPDF('l', 'mm', 'a4');
       doc.setFont("sans-serif", "bold");
 
@@ -1008,6 +994,24 @@
         day: '2-digit', month: '2-digit', year: 'numeric',
         hour: '2-digit', minute: '2-digit', hour12: true
       });
+    }
+
+    // ================================================================
+    // GLOBAL HELPER: formatDateForPDF
+    // -- Yeh function GLOBAL scope mein hai taaki exportToPDF() aur
+    //    exportSearchPDF() dono use kar sakein
+    // -- Input:  ISO string "2026-06-07T10:30:00.000Z"
+    // -- Output: "07/06/2026 10:30"
+    // ================================================================
+    function formatDateForPDF(isoString) {
+      if (!isoString) return '-';
+      const d = new Date(isoString);
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const yyyy = d.getFullYear();
+      const hh = String(d.getHours()).padStart(2, '0');
+      const min = String(d.getMinutes()).padStart(2, '0');
+      return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
     }
 
     function switchAuthTab(tab) {
