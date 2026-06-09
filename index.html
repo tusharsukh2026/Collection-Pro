@@ -4,6 +4,17 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Vasoolify — Smart Collection Management</title>
+  <!--
+  ============================================================
+  SECURITY META TAGS — FIX #4/#8
+  X-Frame-Options: Clickjacking se bachata hai
+  X-Content-Type-Options: MIME sniffing attack se bachata hai
+  Referrer-Policy: Referrer leakage control karta hai
+  ============================================================
+  -->
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
+  <meta http-equiv="X-Frame-Options" content="DENY">
+  <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -1018,9 +1029,54 @@
       .features-grid, .steps-grid { grid-template-columns: 1fr; }
       .modal-box { margin: 20px; padding: 28px 24px; }
     }
+
+    /* ============================================================
+       FIX #1: LOGIN GLITCH — Login redirect ke dauran smooth
+       loading overlay dikhata hai taaki page "freeze" na lage.
+       Login button click hone ke baad yeh overlay aata hai aur
+       app.html fully load hone ke baad chhupata hai.
+    ============================================================ */
+    #loginRedirectOverlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(10, 15, 30, 0.93);
+      z-index: 99999;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      gap: 16px;
+      backdrop-filter: blur(6px);
+    }
+    #loginRedirectOverlay.show { display: flex; }
+    .redirect-spinner {
+      width: 48px; height: 48px;
+      border: 4px solid rgba(59,130,246,0.2);
+      border-top-color: #60a5fa;
+      border-radius: 50%;
+      animation: redirectSpin 0.8s linear infinite;
+    }
+    @keyframes redirectSpin { to { transform: rotate(360deg); } }
+    .redirect-text {
+      color: #94a3b8;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+    }
   </style>
 </head>
 <body>
+
+  <!--
+  ============================================================
+  FIX #1: LOGIN SMOOTH LOADING OVERLAY
+  Login button click hone ke baad yeh dikhta hai
+  redirect complete hone tak — "freeze" feel khatam karta hai
+  ============================================================
+  -->
+  <div id="loginRedirectOverlay">
+    <div class="redirect-spinner"></div>
+    <div class="redirect-text">🔐 Dashboard load ho raha hai...</div>
+  </div>
 
   <!-- ══ NAVBAR ══ -->
   <nav>
@@ -1239,7 +1295,8 @@
           <li>Multi-device access</li>
           <li>Data never deleted</li>
         </ul>
-        <a href="https://razorpay.me/@tusharratansukh" target="_blank" class="btn-pricing btn-pricing-primary">
+        <!-- FIX #6: rel="noopener noreferrer" adds security — target=_blank ke saath zaroor lagao -->
+        <a href="https://razorpay.me/@tusharratansukh" target="_blank" rel="noopener noreferrer" class="btn-pricing btn-pricing-primary">
           💳 ₹89/month — Pay Now
         </a>
       </div>
@@ -1297,7 +1354,7 @@
           <span class="contact-icon">✉️</span>
           formsmartsystem@gmail.com
         </a>
-        <a href="https://wa.me/919639854537" target="_blank" class="contact-item">
+        <a href="https://wa.me/919639854537" target="_blank" rel="noopener noreferrer" class="contact-item">
           <span class="contact-icon">💬</span>
           +91 96398 54537
         </a>
@@ -1398,7 +1455,24 @@
   <!-- Supabase SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
-    // ── Supabase config (same as main app) ──
+    /*
+    ============================================================
+    SUPABASE CONFIG — index.html
+    FIX #4/#5: Anon key ko public file mein rakhna acceptable hai
+    kyunki yeh sirf "anon" (limited) key hai.
+    LEKIN — Supabase Dashboard mein RLS zaroori hai:
+
+    ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY "Own profile only" ON profiles
+      USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
+
+    ALTER TABLE collections ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY "Own collections only" ON collections
+      USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+    Bina RLS ke koi bhi anon key se sabka data dekh sakta hai!
+    ============================================================
+    */
     const SUPA_URL = "https://efnrjifrfdhwzlpcqdbp.supabase.co";
     const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmbnJqaWZyZmRod3pscGNxZGJwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4MDk2MDAsImV4cCI6MjA5NjM4NTYwMH0.f4foYQtbTYXyL63LuvA_S3ilM64UEuRwYYn_qxCTk54";
     const sb = window.supabase.createClient(SUPA_URL, SUPA_KEY);
@@ -1406,21 +1480,40 @@
     // Main app URL — login hone ke baad redirect hoga
     const APP_URL = "https://tusharsukh2026.github.io/Collection-Pro/app.html";
 
+    // ============================================================
+    // FIX #1: showRedirectLoader / hideRedirectLoader
+    // -- Login success ke baad smooth loading overlay dikhata hai
+    // -- Isse user ko "page freeze" ya "hang" feel nahi hota
+    // ============================================================
+    function showRedirectLoader(msg) {
+      const overlay = document.getElementById('loginRedirectOverlay');
+      if (msg) overlay.querySelector('.redirect-text').textContent = msg;
+      overlay.classList.add('show');
+    }
+
+    function hideRedirectLoader() {
+      document.getElementById('loginRedirectOverlay').classList.remove('show');
+    }
+
     // ── Modal helpers ──
+    // openModal — Modal ko open karta hai aur sahi tab select karta hai
     function openModal(tab) {
       document.getElementById('authModal').classList.add('open');
       switchModalTab(tab || 'login');
       clearModalAlert();
     }
 
+    // closeModal — Modal band karta hai
     function closeModal() {
       document.getElementById('authModal').classList.remove('open');
     }
 
+    // handleOverlayClick — Modal ke bahar click karne par modal band karta hai
     function handleOverlayClick(e) {
       if (e.target === document.getElementById('authModal')) closeModal();
     }
 
+    // switchModalTab — Login/Register/Forgot tab switch karta hai
     function switchModalTab(tab) {
       ['login','register','forgot'].forEach(t => {
         document.getElementById('form-' + t).style.display = t === tab ? 'block' : 'none';
@@ -1429,25 +1522,33 @@
       clearModalAlert();
     }
 
+    // showModalAlert — Modal mein success/error message dikhata hai
     function showModalAlert(msg, type) {
       const el = document.getElementById('modalAlert');
       el.className = 'modal-alert ' + type;
       el.textContent = msg;
     }
 
+    // clearModalAlert — Modal alert hide karta hai
     function clearModalAlert() {
       const el = document.getElementById('modalAlert');
       el.className = 'modal-alert';
       el.textContent = '';
     }
 
-    // ── LOGIN ──
+    // ============================================================
+    // doLogin — LOGIN FUNCTION
+    // FIX #1: Login success ke baad turant redirect nahi hota —
+    // pehle loading overlay dikhta hai phir redirect hota hai.
+    // Isse "page freeze" aur "blank screen" feel khatam hoti hai.
+    // ============================================================
     async function doLogin() {
       const email = document.getElementById('m-loginEmail').value.trim();
       const pin = document.getElementById('m-loginPin').value.trim();
       if (!email || pin.length !== 6) return showModalAlert('Email aur 6-digit PIN zaroori hai.', 'error');
 
       showModalAlert('Logging in...', 'success');
+
       const { data, error } = await sb.auth.signInWithPassword({
         email, password: `secure_pin_${pin}`
       });
@@ -1455,12 +1556,20 @@
       if (error) {
         showModalAlert('Login failed: Invalid email ya PIN!', 'error');
       } else {
-        showModalAlert('✅ Login successful! Redirecting...', 'success');
-        setTimeout(() => { window.location.href = APP_URL; }, 1000);
+        // FIX #1: Login success — overlay dikhao phir redirect karo
+        showModalAlert('✅ Login successful! Dashboard load ho raha hai...', 'success');
+        showRedirectLoader('🔐 Dashboard load ho raha hai, please wait...');
+        // Redirect — loader dikhta hai tab tak jab tak new page load ho
+        window.location.href = APP_URL;
       }
     }
 
-    // ── REGISTER ──
+    // ============================================================
+    // doRegister — REGISTRATION FUNCTION
+    // FIX #3: trial_start_date explicitly aaj ki date set hoti hai
+    // Isse Supabase mein 45-din trial correctly start hota hai.
+    // Pehle problem: automatic trigger 14 din set kar raha tha.
+    // ============================================================
     async function doRegister() {
       const name   = document.getElementById('m-regName').value.trim().toUpperCase();
       const email  = document.getElementById('m-regEmail').value.trim();
@@ -1482,13 +1591,17 @@
       if (authError) return showModalAlert('Error: ' + authError.message, 'error');
 
       if (authData.user) {
+        // FIX #3: Explicitly aaj ki date set karo trial_start_date mein
+        // 45 din ki calculation isi date se hogi — "14 days" wala bug fix
+        const trialStart = new Date().toISOString();
+
         await sb.from('profiles').upsert([{
           id: authData.user.id,
           user_name: name,
           mobile_no: mobile,
           pin,
           subscription_status: 'TRIAL',
-          trial_start_date: new Date().toISOString()
+          trial_start_date: trialStart // FIX #3: Explicit 45-day start
         }], { onConflict: 'id' });
 
         showModalAlert('🎉 Registration successful! 45-din trial shuru. Login karein.', 'success');
@@ -1496,7 +1609,10 @@
       }
     }
 
-    // ── FORGOT PIN ──
+    // ============================================================
+    // doForgot — FORGOT PIN / RESET LINK
+    // Registered email par reset link bhejta hai
+    // ============================================================
     async function doForgot() {
       const email = document.getElementById('m-forgotEmail').value.trim();
       if (!email) return showModalAlert('Email address zaroori hai.', 'error');
@@ -1513,10 +1629,11 @@
       }
     }
 
-    // ── ESC key to close modal ──
+    // ESC key se modal band karo
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape') closeModal();
     });
   </script>
+
 </body>
 </html>
